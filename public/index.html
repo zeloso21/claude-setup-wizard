@@ -1,0 +1,312 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>Claude Code 설치 마법사</title>
+<style>
+  :root {
+    --bg:#f7f7f5; --card:#ffffff; --border:#e5e3dd; --ink:#1a1a1a; --muted:#767267;
+    --accent:#c15f3c; --accent-soft:#f3e3db; --ok:#2f7a4f; --ok-soft:#e5f3ea;
+    --warn:#b5872a; --warn-soft:#faf1de;
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font-family:'Segoe UI','Malgun Gothic',sans-serif; }
+  header { padding:32px 24px 8px; max-width:760px; margin:0 auto; }
+  header h1 { font-size:22px; margin:0 0 6px; }
+  header p { color:var(--muted); font-size:14px; margin:0; line-height:1.6; }
+  main { max-width:760px; margin:0 auto; padding:16px 24px 60px; }
+  .step { background:var(--card); border:1px solid var(--border); border-radius:10px; padding:20px 22px; margin-bottom:14px; }
+  .step.done { opacity:0.75; }
+  .step-head { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+  .step-title { font-size:16px; font-weight:600; display:flex; align-items:center; gap:8px; }
+  .badge { font-size:12px; padding:3px 10px; border-radius:20px; font-weight:600; white-space:nowrap; }
+  .badge.need { background:var(--warn-soft); color:var(--warn); }
+  .badge.ok { background:var(--ok-soft); color:var(--ok); }
+  .badge.wait { background:#eee; color:#888; }
+  .step-desc { color:var(--muted); font-size:13.5px; margin:8px 0 4px; line-height:1.7; }
+  .btn { background:var(--accent); color:#fff; border:none; padding:9px 16px; border-radius:7px; font-size:13.5px; cursor:pointer; font-weight:600; }
+  .btn:hover { opacity:0.9; }
+  .btn.secondary { background:#fff; color:var(--accent); border:1px solid var(--accent); }
+  .btn:disabled { background:#ccc; cursor:not-allowed; }
+  .row { display:flex; gap:10px; margin-top:10px; flex-wrap:wrap; align-items:center; }
+  details { margin-top:10px; }
+  summary { cursor:pointer; font-size:13px; color:var(--accent); font-weight:600; }
+  .guide { background:#fafaf8; border:1px dashed var(--border); border-radius:8px; padding:14px 16px; margin-top:8px; font-size:13px; line-height:1.9; color:#444; }
+  .guide ol, .guide ul { margin:6px 0; padding-left:20px; }
+  .guide code { background:#eee; padding:1px 5px; border-radius:4px; }
+  .log { background:#1e1e1e; color:#c8f0c8; font-family:monospace; font-size:12px; padding:12px; border-radius:8px; margin-top:10px; white-space:pre-wrap; max-height:220px; overflow-y:auto; display:none; }
+  input[type=text], input[type=email], input[type=password], input[type=number] {
+    width:100%; padding:9px 10px; border:1px solid var(--border); border-radius:7px; font-size:13.5px; margin-top:6px;
+  }
+  label.field { display:block; font-size:13px; font-weight:600; margin-top:12px; }
+  .hint { font-size:12px; color:var(--muted); margin-top:3px; }
+  .progressbar { display:flex; gap:6px; margin:16px 0 4px; }
+  .dot { flex:1; height:5px; border-radius:3px; background:#e5e3dd; }
+  .dot.done { background:var(--ok); }
+  .dot.current { background:var(--accent); }
+  footer { text-align:center; color:var(--muted); font-size:12px; padding:20px; }
+  .env-badge { font-size:11px; color:var(--muted); }
+</style>
+</head>
+<body>
+<header>
+  <h1>🪄 Claude Code 설치 마법사</h1>
+  <p>터미널 명령어를 몰라도 괜찮습니다. 이미 설치된 항목은 자동으로 건너뛰고, 필요한 것만 순서대로 안내해드립니다.
+  마지막엔 실제로 동작하는 "이메일 섹터 리포트" 자동화까지 완성됩니다.</p>
+  <div class="progressbar" id="progressbar"></div>
+</header>
+<main id="steps"></main>
+<footer>로컬 컴퓨터에서만 실행되는 도구입니다(Node.js 기반). 입력한 정보는 이 컴퓨터의 agent/.env 파일에만 저장됩니다.</footer>
+
+<script>
+const STATE = { check: null, loginChecked: false, config: null };
+
+function badge(text, cls) { return `<span class="badge ${cls}">${text}</span>`; }
+
+async function api(path, opts) {
+  const res = await fetch(path, opts || {});
+  return res.json();
+}
+
+function showLog(id, text) {
+  const el = document.getElementById(id);
+  el.style.display = 'block';
+  el.textContent = text;
+}
+
+async function refreshCheck() {
+  STATE.check = await api('/api/check');
+  STATE.config = await api('/api/load-config');
+  render();
+}
+
+function render() {
+  const c = STATE.check;
+  if (!c) return;
+  const steps = document.getElementById('steps');
+  const claudeDone = c.claude_cli.installed;
+  const loginDone = STATE.loginChecked === true;
+  const agentDone = c.agent_exists;
+  const configDone = c.env_configured;
+
+  const dots = [claudeDone, loginDone, agentDone, configDone, false];
+  document.getElementById('progressbar').innerHTML = dots.map((d,i) =>
+    `<div class="dot ${d ? 'done' : (i===dots.findIndex(x=>!x) ? 'current' : '')}"></div>`).join('');
+
+  steps.innerHTML = `
+
+  <div class="env-badge">✅ Node.js ${c.node.version || ''} 로 이 마법사가 실행 중입니다.</div>
+
+  <div class="step ${claudeDone ? 'done' : ''}" style="margin-top:10px">
+    <div class="step-head">
+      <div class="step-title">1️⃣ Claude Code 설치</div>
+      ${claudeDone ? badge('설치됨 ' + (c.claude_cli.version||''), 'ok') : badge('필요', 'need')}
+    </div>
+    <div class="step-desc">Claude Code 프로그램 자체를 설치합니다.</div>
+    ${!claudeDone ? `
+    <div class="row"><button class="btn" onclick="installClaude()">자동 설치</button></div>` : ''}
+    <div class="log" id="log-claude"></div>
+    <details><summary>자세히 보기</summary>
+      <div class="guide">
+        <code>npm install -g @anthropic-ai/claude-code</code> 명령 하나로 설치됩니다.
+        이 버튼이 그 명령을 대신 실행해드립니다. 1~2분 정도 걸릴 수 있습니다.
+      </div>
+    </details>
+  </div>
+
+  <div class="step ${loginDone ? 'done' : ''}">
+    <div class="step-head">
+      <div class="step-title">2️⃣ Claude Code 로그인</div>
+      ${loginDone ? badge('로그인됨', 'ok') : (claudeDone ? badge('필요', 'need') : badge('1단계 먼저', 'wait'))}
+    </div>
+    <div class="step-desc">이 단계는 브라우저 인증이 필요해서, 실제 터미널 창을 하나 열어드립니다. 무섭지 않아요 — 딱 한 줄만 입력하면 됩니다.</div>
+    ${claudeDone ? `
+    <div class="row">
+      <button class="btn" onclick="openTerminal('log-login')">터미널 열기</button>
+      <button class="btn secondary" onclick="checkLogin()">로그인 완료했어요 (확인)</button>
+    </div>` : ''}
+    <div class="log" id="log-login"></div>
+    <details open><summary>자세히 보기 (꼭 읽어주세요)</summary>
+      <div class="guide">
+        <ol>
+          <li>"터미널 열기" 버튼을 누르면 검은 화면(터미널)이 하나 뜹니다.</li>
+          <li>그 창에 <code>claude</code> 라고 입력하고 Enter를 누르세요.</li>
+          <li>Claude Code 계정이 없다면, claude.ai/code 에서 먼저 가입/구독해주세요. 이미 있다면 브라우저 창이 자동으로 열리며 로그인 화면이 나옵니다.</li>
+          <li>로그인이 끝나면 터미널로 자동으로 돌아옵니다 — 그 창은 그냥 닫으셔도 됩니다.</li>
+          <li>다시 이 화면으로 와서 "로그인 완료했어요" 버튼을 눌러주세요.</li>
+        </ol>
+        이 과정을 한 번 해보시면, 앞으로 Claude Code 터미널이 훨씬 덜 낯설게 느껴지실 거예요.
+      </div>
+    </details>
+  </div>
+
+  <div class="step ${agentDone ? 'done' : ''}">
+    <div class="step-head">
+      <div class="step-title">3️⃣ 에이전트 만들기 (실습) — 섹터 리포트 이메일</div>
+      ${agentDone ? badge('만들어짐', 'ok') : (loginDone ? badge('필요', 'need') : badge('2단계 먼저', 'wait'))}
+    </div>
+    <div class="step-desc">이제 Claude Code한테 직접 시켜서, 매일 한국 섹터 등락률을 요약해 이메일로 보내는 프로그램을 만들어봅니다. 이게 Claude Code의 진짜 핵심 기능이에요.</div>
+    ${loginDone ? `
+    <div class="row">
+      <button class="btn" onclick="openTerminal('log-agent')">터미널 열기</button>
+      <button class="btn secondary" onclick="refreshCheck()">만들었어요, 확인하기</button>
+    </div>` : ''}
+    <div class="log" id="log-agent"></div>
+    <details open><summary>자세히 보기 (아래 문장을 그대로 입력하세요)</summary>
+      <div class="guide">
+        <ol>
+          <li>"터미널 열기"를 누르면 검은 화면이 뜹니다. <b>중요:</b> Claude Code는 지금 터미널이 "어느 폴더에 있는지"를 기준으로 파일을 만듭니다 — 그래서 이 버튼이 자동으로 이 프로젝트 폴더 안에서 터미널을 열어드립니다. 창에 폴더 경로가 보이는지 한 번 확인해보세요.</li>
+          <li><code>claude</code> 라고 입력하고 Enter — Claude Code가 시작됩니다.</li>
+          <li>아래 문장을 <b>그대로 복사해서</b> 붙여넣고 Enter를 누르세요:</li>
+        </ol>
+        <div style="background:#1e1e1e;color:#e8e8e8;padding:12px;border-radius:6px;font-family:monospace;font-size:12.5px;margin:8px 0;user-select:all;">
+          나는 미국 섹터 상승률을 매일 아침 이메일로 자동으로 보내는 에이전트를 만들고 싶어.
+          agent 폴더 안에 만들어주고, 이메일 보낼 때 필요한 정보는 .env 파일에서 읽게 해줘.
+        </div>
+        <ol start="4">
+          <li>Claude Code가 실제로 코드를 만드는 과정이 화면에 나타납니다 — 완료될 때까지 기다려주세요(1~2분). 중간에 뭔가 물어보면 편하게 대답하시면 됩니다.</li>
+          <li>다 되면 이 화면으로 돌아와 "만들었어요, 확인하기"를 눌러주세요.</li>
+        </ol>
+      </div>
+    </details>
+  </div>
+
+  <div class="step ${configDone ? 'done' : ''}">
+    <div class="step-head">
+      <div class="step-title">4️⃣ 이메일·API 키 입력</div>
+      ${configDone ? badge('설정됨', 'ok') : (agentDone ? badge('필요', 'need') : badge('3단계 먼저', 'wait'))}
+    </div>
+    <div class="step-desc">방금 만든 에이전트가 이메일을 보낼 때 쓸 Gmail 정보를 입력합니다.</div>
+    ${agentDone ? `
+    <div id="config-form">
+      <label class="field">보낼 Gmail 주소 (발신)</label>
+      <input type="email" id="f-gmail" placeholder="you@gmail.com" value="${(STATE.config && STATE.config.gmail_sender) || ''}">
+      <label class="field">Gmail 앱 비밀번호</label>
+      <input type="password" id="f-pw" placeholder="${STATE.config && STATE.config.has_gmail_password ? '이미 저장되어 있습니다 (바꾸려면 새로 입력)' : '16자리'}">
+      <div class="hint">일반 로그인 비밀번호가 아닙니다 — 아래 "자세히 보기"에서 발급 방법을 확인하세요. 비워두면 기존에 저장된 값이 유지됩니다.</div>
+      <label class="field">받는 이메일 주소 (수신, 비워두면 발신 주소와 동일)</label>
+      <input type="email" id="f-recipient" placeholder="you@gmail.com" value="${(STATE.config && STATE.config.recipient) || ''}">
+      <label class="field">KRX(한국거래소) API 키 <span style="font-weight:400;color:var(--muted)">— 선택, 심화학습 ①에서 사용</span></label>
+      <input type="password" id="f-krx" placeholder="${STATE.config && STATE.config.has_krx_key ? '이미 저장되어 있습니다 (바꾸려면 새로 입력)' : '지금 없으면 비워두세요'}">
+      <div class="hint">data-dbg.krx.co.kr 에서 무료 발급받을 수 있습니다. 나중에 심화학습 단계에서 써도 됩니다.</div>
+      <div class="row"><button class="btn" onclick="saveConfig()">저장</button></div>
+    </div>` : ''}
+    <div class="log" id="log-config"></div>
+    <details><summary>자세히 보기 (Gmail 앱 비밀번호 발급법)</summary>
+      <div class="guide">
+        <ol>
+          <li>구글 계정에 <b>2단계 인증</b>이 켜져 있어야 합니다 (myaccount.google.com → 보안 → 2단계 인증).</li>
+          <li>myaccount.google.com/apppasswords 로 이동합니다.</li>
+          <li>앱 이름을 아무렇게나(예: "섹터리포트") 입력하고 생성을 누릅니다.</li>
+          <li>16자리 코드가 나오면 그대로 복사해서 위 "Gmail 앱 비밀번호" 칸에 붙여넣습니다(일반 로그인 비밀번호 아님!).</li>
+        </ol>
+      </div>
+    </details>
+  </div>
+
+  <div class="step">
+    <div class="step-head">
+      <div class="step-title">5️⃣ 예약 발송 설정 + 테스트</div>
+      ${configDone ? '' : badge('4단계 먼저', 'wait')}
+    </div>
+    <div class="step-desc">매일 자동으로 보내지도록 예약하고, 지금 바로 한 번 테스트 발송해봅니다.</div>
+    ${configDone ? `
+    <label class="field">매일 몇 시에 보낼까요?</label>
+    <div class="row">
+      <input type="number" id="f-hour" min="0" max="23" value="7" style="width:70px">
+      <span>시</span>
+      <input type="number" id="f-min" min="0" max="59" value="0" style="width:70px">
+      <span>분</span>
+    </div>
+    <div class="row">
+      <button class="btn" onclick="setSchedule()">매일 자동 발송 예약</button>
+      <button class="btn secondary" onclick="testSend()">지금 테스트 발송</button>
+    </div>` : ''}
+    <div class="log" id="log-final"></div>
+  </div>
+
+  <div class="step" style="border-style:dashed;background:#fbfaf7">
+    <div class="step-head"><div class="step-title">🎓 심화 학습 (선택)</div>${configDone ? '' : badge('1~5단계 완료 후 도전', 'wait')}</div>
+    <div class="step-desc">기본 버전이 잘 되면, 터미널에서 Claude Code한테 이렇게 더 시켜볼 수 있어요 — 안 하셔도 지금 상태로 충분히 잘 동작합니다.</div>
+    <details><summary>다음 도전 과제 보기</summary>
+      <div class="guide">
+        <b>① 한국 섹터 정보도 추가해보기</b><br>
+        한국거래소(KRX) 데이터를 쓰려면 API 키가 하나 더 필요해요(data-dbg.krx.co.kr에서 무료 발급).
+        키를 발급받으신 뒤, 터미널에서 이렇게 시켜보세요:
+        <div style="background:#1e1e1e;color:#e8e8e8;padding:10px;border-radius:6px;font-family:monospace;font-size:12px;margin:8px 0;user-select:all;">
+          한국 섹터 등락률도 같이 조회해서 이메일에 추가해줘. KRX API 키는 .env의 KRX_AUTH_KEY에서 읽게 해줘.
+        </div>
+        <b>② 보기 좋게 꾸미기</b>
+        <div style="background:#1e1e1e;color:#e8e8e8;padding:10px;border-radius:6px;font-family:monospace;font-size:12px;margin:8px 0;user-select:all;">
+          이메일을 표 형태의 예쁜 HTML로 꾸며줘. 오른 종목은 빨간색, 내린 종목은 파란색으로 보여줘.
+        </div>
+        <b>③ 요약도 추가하기</b>
+        <div style="background:#1e1e1e;color:#e8e8e8;padding:10px;border-radius:6px;font-family:monospace;font-size:12px;margin:8px 0;user-select:all;">
+          오늘 등락률을 보고 어떤 섹터가 강세/약세였는지 3문장으로 요약도 같이 넣어줘.
+        </div>
+        <b>④ 내 컴퓨터를 꺼도 계속 돌아가게 하기 (클라우드에 올리기)</b><br>
+        지금까지는 이 컴퓨터가 켜져 있어야만 매일 발송이 됩니다. 구글 클라우드(무료 등급 있음)의 작은 서버 컴퓨터에
+        옮겨두면, 내 컴퓨터를 꺼도 24시간 알아서 돌아갑니다. 구글 계정만 있으면 시작할 수 있어요:
+        <div style="background:#1e1e1e;color:#e8e8e8;padding:10px;border-radius:6px;font-family:monospace;font-size:12px;margin:8px 0;user-select:all;">
+          이 에이전트를 구글 클라우드(Google Cloud) 가상서버에 올려서, 내 컴퓨터를 꺼도
+          매일 자동으로 실행되게 하고 싶어. 계정 준비부터 서버 만들기, 코드 옮기기,
+          매일 자동 실행 설정까지 하나씩 순서대로 안내해줘.
+        </div>
+        <div class="hint">이 과정은 구글 클라우드 계정 가입이 필요하고, 사용량에 따라 비용이 발생할 수 있어요(작은 서버는 대부분 무료 등급 안에 들어갑니다). Claude Code가 단계마다 무엇을 클릭/입력해야 하는지 안내해줄 거예요.</div>
+        이런 식으로 조금씩 요청을 더해가면서 원하는 모습으로 계속 발전시킬 수 있어요 — 이게 Claude Code를 쓰는 가장 자연스러운 방법입니다.
+      </div>
+    </details>
+  </div>
+  `;
+}
+
+async function installClaude() {
+  showLog('log-claude', '설치 중입니다...');
+  const r = await api('/api/install/claude', {method:'POST'});
+  showLog('log-claude', (r.stdout||'') + '\n' + (r.stderr||'') + (r.message ? '\n'+r.message : ''));
+  await refreshCheck();
+}
+
+async function openTerminal(logId) {
+  const r = await api('/api/open-terminal', {method:'POST'});
+  if (!r.ok) showLog(logId || 'log-login', r.message || '터미널을 열지 못했습니다.');
+}
+
+async function checkLogin() {
+  showLog('log-login', '확인 중...');
+  const r = await api('/api/check-login', {method:'POST'});
+  STATE.loginChecked = !!r.logged_in;
+  showLog('log-login', r.logged_in ? '✅ 로그인 확인됐습니다!' : ('아직 확인이 안 됩니다. ' + (r.message||'') + '\n' + (r.raw||'')));
+  render();
+}
+
+async function saveConfig() {
+  const body = {
+    gmail_sender: document.getElementById('f-gmail').value,
+    gmail_app_password: document.getElementById('f-pw').value,
+    recipient: document.getElementById('f-recipient').value || document.getElementById('f-gmail').value,
+    krx_key: document.getElementById('f-krx').value,
+  };
+  const r = await api('/api/save-config', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)});
+  showLog('log-config', r.ok ? '✅ 저장했습니다.' : '저장 실패');
+  await refreshCheck();
+}
+
+async function setSchedule() {
+  const hour = document.getElementById('f-hour').value;
+  const minute = document.getElementById('f-min').value;
+  showLog('log-final', '예약 등록 중...');
+  const r = await api('/api/schedule', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({hour, minute})});
+  showLog('log-final', r.ok ? `✅ 매일 ${hour}:${minute}에 자동 발송되도록 예약했습니다.` : ('예약 실패: ' + (r.stderr||r.message||'')));
+}
+
+async function testSend() {
+  showLog('log-final', '테스트 발송 중입니다... (최대 3분 정도 걸릴 수 있어요)');
+  const r = await api('/api/test-send', {method:'POST'});
+  showLog('log-final', (r.stdout||'') + '\n' + (r.stderr||''));
+}
+
+refreshCheck();
+</script>
+</body>
+</html>
