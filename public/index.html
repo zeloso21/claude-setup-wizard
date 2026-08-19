@@ -40,6 +40,8 @@
   }
   label.field { display:block; font-size:13px; font-weight:600; margin-top:12px; }
   .hint { font-size:12px; color:var(--muted); margin-top:3px; }
+  .tip { background:#eef5fb; border-left:3px solid #4a90d9; padding:8px 12px; border-radius:0 6px 6px 0; margin:8px 0; font-size:12.5px; line-height:1.7; }
+  .warnbox { background:var(--warn-soft); border-left:3px solid var(--warn); padding:8px 12px; border-radius:0 6px 6px 0; margin:8px 0; font-size:12.5px; line-height:1.7; }
   .progressbar { display:flex; gap:6px; margin:16px 0 4px; }
   .dot { flex:1; height:5px; border-radius:3px; background:#e5e3dd; }
   .dot.done { background:var(--ok); }
@@ -53,6 +55,25 @@
   <h1>🪄 Claude Code 설치 마법사</h1>
   <p>터미널 명령어를 몰라도 괜찮습니다. 이미 설치된 항목은 자동으로 건너뛰고, 필요한 것만 순서대로 안내해드립니다.
   마지막엔 실제로 동작하는 "이메일 섹터 리포트" 자동화까지 완성됩니다.</p>
+  <details>
+    <summary>❓ "터미널"이 뭔가요? (컴퓨터가 처음이면 먼저 읽어보세요)</summary>
+    <div class="guide">
+      터미널은 마우스로 클릭하는 대신 <b>글자를 입력해서 컴퓨터에게 직접 명령을 내리는 검은 화면</b>이에요.
+      아래 단계들을 진행하다 보면 "터미널 열기"라는 버튼이 여러 번 나오는데, 그 버튼을 누르면 이 마법사가
+      알맞은 위치에 알아서 열어드리니 <b>직접 찾아서 켤 필요는 없어요</b>.
+      <div class="hint" style="margin-top:6px;">
+        그래도 궁금하시다면: Windows에서는 키보드의 <code>윈도우 키</code>를 누르고 <code>cmd</code>라고 입력한 뒤 Enter를 누르면
+        "명령 프롬프트"라는 검은 창이 뜹니다 — 이게 터미널이에요. 처음 보면 아무것도 없는 새까만 화면이라 낯설 수 있지만,
+        이 마법사가 시키는 대로 문장만 그대로 입력하시면 되니 걱정 안 하셔도 됩니다.
+      </div>
+      <div class="warnbox" style="margin-top:8px;">
+        ⚠️ <b>주의:</b> 이렇게 직접 연 터미널에 아직 아무것도 설치하지 않은 상태에서 바로 <code>claude</code>라고 쳐보면
+        <code>'claude'은(는) 내부 또는 외부 명령... 이(가) 아닙니다</code>라는 에러가 뜹니다 — 이건 컴퓨터가 고장난 게 아니라
+        <b>아직 1단계 "Claude Code 설치"를 안 해서</b> 나는 정상적인 메시지예요. 아래 1단계의 "자동 설치" 버튼을 먼저 눌러서
+        설치를 마친 뒤에 <code>claude</code>를 입력해야 동작합니다.
+      </div>
+    </div>
+  </details>
   <div class="progressbar" id="progressbar"></div>
 </header>
 <main id="steps"></main>
@@ -89,7 +110,7 @@ function render() {
   const agentDone = c.agent_exists;
   const configDone = c.env_configured;
 
-  const dots = [claudeDone, loginDone, agentDone, configDone, false];
+  const dots = [claudeDone, loginDone, configDone, agentDone, false];
   document.getElementById('progressbar').innerHTML = dots.map((d,i) =>
     `<div class="dot ${d ? 'done' : (i===dots.findIndex(x=>!x) ? 'current' : '')}"></div>`).join('');
 
@@ -131,7 +152,7 @@ function render() {
         <ol>
           <li>"터미널 열기" 버튼을 누르면 검은 화면(터미널)이 하나 뜹니다.</li>
           <li>그 창에 <code>claude</code> 라고 입력하고 Enter를 누르세요.</li>
-          <li>Claude Code 계정이 없다면, claude.ai/code 에서 먼저 가입/구독해주세요. 이미 있다면 브라우저 창이 자동으로 열리며 로그인 화면이 나옵니다.</li>
+          <li>Claude Code 계정이 없다면, <a href="https://claude.ai/code" target="_blank" rel="noopener">claude.ai/code</a> 에서 먼저 가입/구독해주세요. 이미 있다면 브라우저 창이 자동으로 열리며 로그인 화면이 나옵니다.</li>
           <li>로그인이 끝나면 터미널로 자동으로 돌아옵니다 — 그 창은 그냥 닫으셔도 됩니다.</li>
           <li>다시 이 화면으로 와서 "로그인 완료했어요" 버튼을 눌러주세요.</li>
         </ol>
@@ -140,13 +161,59 @@ function render() {
     </details>
   </div>
 
+  <div class="step ${configDone ? 'done' : ''}">
+    <div class="step-head">
+      <div class="step-title">3️⃣ 이메일·API 키 입력</div>
+      ${configDone ? badge('설정됨', 'ok') : (loginDone ? badge('필요', 'need') : badge('2단계 먼저', 'wait'))}
+    </div>
+    <div class="step-desc">곧 만들 에이전트가 이메일을 보낼 때 쓸 Gmail 정보를 미리 입력해둡니다. 필요한 정보를 먼저 준비해두면, 다음 단계에서 에이전트를 만들자마자 바로 테스트 발송까지 이어서 할 수 있어요.</div>
+    ${loginDone ? `
+    <div id="config-form">
+      <label class="field">보낼 Gmail 주소 (발신)</label>
+      <input type="email" id="f-gmail" placeholder="you@gmail.com" value="${(STATE.config && STATE.config.gmail_sender) || ''}">
+      <label class="field">Gmail 앱 비밀번호</label>
+      <input type="password" id="f-pw" placeholder="${STATE.config && STATE.config.has_gmail_password ? '이미 저장되어 있습니다 (바꾸려면 새로 입력)' : '16자리'}">
+      <div class="hint">일반 로그인 비밀번호가 아닙니다 — 아래 "자세히 보기"에서 발급 방법을 확인하세요. 비워두면 기존에 저장된 값이 유지됩니다.</div>
+      <label class="field">받는 이메일 주소 (수신, 비워두면 발신 주소와 동일)</label>
+      <input type="email" id="f-recipient" placeholder="you@gmail.com" value="${(STATE.config && STATE.config.recipient) || ''}">
+      <label class="field">KRX(한국거래소) API 키 <span style="font-weight:400;color:var(--muted)">— 선택, 심화학습 ①에서 사용</span></label>
+      <input type="password" id="f-krx" placeholder="${STATE.config && STATE.config.has_krx_key ? '이미 저장되어 있습니다 (바꾸려면 새로 입력)' : '지금 없으면 비워두세요'}">
+      <div class="hint"><a href="https://data-dbg.krx.co.kr" target="_blank" rel="noopener">data-dbg.krx.co.kr</a> 에서 무료 발급받을 수 있습니다. 나중에 심화학습 단계에서 써도 됩니다.</div>
+      <div class="row"><button class="btn" onclick="saveConfig()">저장</button></div>
+    </div>` : ''}
+    <div class="log" id="log-config"></div>
+    <details open><summary>📋 Gmail 앱 비밀번호 발급 방법 (처음이면 꼭 읽어보세요)</summary>
+      <div class="guide">
+        <ol>
+          <li>
+            먼저 구글 계정에 <b>2단계 인증</b>이 켜져 있어야 앱 비밀번호를 만들 수 있어요.
+            <a href="https://myaccount.google.com/security" target="_blank" rel="noopener">여기를 눌러 보안 설정으로 이동</a>한 뒤
+            "2단계 인증"이 꺼져 있으면 켜주세요 (휴대폰 문자로 인증하는 방식이 가장 간단합니다).
+          </li>
+          <li>
+            2단계 인증이 이미 켜져 있다면
+            <a href="https://myaccount.google.com/apppasswords" target="_blank" rel="noopener">여기를 눌러 앱 비밀번호 발급 페이지로 이동</a>하세요.
+            (구글 로그인을 다시 요구할 수 있어요 — 평소 쓰는 본인 비밀번호로 로그인하면 됩니다.)
+          </li>
+          <li>"앱 이름" 칸에 아무 이름이나 입력하세요 (예: <code>섹터리포트</code>). 그리고 "만들기" 버튼을 누르세요.</li>
+          <li>노란 배경에 <b>16자리 코드</b>(예: <code>abcd efgh ijkl mnop</code>)가 나타납니다. 이 코드를 그대로 복사하세요 (띄어쓰기는 있어도 없어도 상관없습니다).</li>
+          <li>
+            이 창으로 돌아와서 <b>바로 위 "Gmail 앱 비밀번호" 입력칸</b>에 방금 복사한 16자리 코드를 붙여넣으세요.
+            <u>구글 로그인할 때 쓰는 원래 비밀번호가 아닙니다</u> — 반드시 방금 새로 발급받은 16자리 코드를 넣어야 합니다.
+          </li>
+        </ol>
+        <div class="hint" style="margin-top:8px;">"앱 비밀번호" 메뉴 자체가 안 보이거나 회색으로 막혀 있나요? 2단계 인증이 아직 꺼져 있어서 그럴 가능성이 높습니다 — 1번부터 다시 확인해보세요.</div>
+      </div>
+    </details>
+  </div>
+
   <div class="step ${agentDone ? 'done' : ''}">
     <div class="step-head">
-      <div class="step-title">3️⃣ 에이전트 만들기 (실습) — 섹터 리포트 이메일</div>
-      ${agentDone ? badge('만들어짐', 'ok') : (loginDone ? badge('필요', 'need') : badge('2단계 먼저', 'wait'))}
+      <div class="step-title">4️⃣ 에이전트 만들기 (실습) — 섹터 리포트 이메일</div>
+      ${agentDone ? badge('만들어짐', 'ok') : (configDone ? badge('필요', 'need') : badge('3단계 먼저', 'wait'))}
     </div>
     <div class="step-desc">이제 Claude Code한테 직접 시켜서, 매일 한국 섹터 등락률을 요약해 이메일로 보내는 프로그램을 만들어봅니다. 이게 Claude Code의 진짜 핵심 기능이에요.</div>
-    ${loginDone ? `
+    ${configDone ? `
     <div class="row">
       <button class="btn" onclick="openTerminal('log-agent')">터미널 열기</button>
       <button class="btn secondary" onclick="refreshCheck()">만들었어요, 확인하기</button>
@@ -165,40 +232,11 @@ function render() {
         </div>
         <ol start="4">
           <li>Claude Code가 실제로 코드를 만드는 과정이 화면에 나타납니다 — 완료될 때까지 기다려주세요(1~2분). 중간에 뭔가 물어보면 편하게 대답하시면 됩니다.</li>
-          <li>다 되면 이 화면으로 돌아와 "만들었어요, 확인하기"를 눌러주세요.</li>
-        </ol>
-      </div>
-    </details>
-  </div>
-
-  <div class="step ${configDone ? 'done' : ''}">
-    <div class="step-head">
-      <div class="step-title">4️⃣ 이메일·API 키 입력</div>
-      ${configDone ? badge('설정됨', 'ok') : (agentDone ? badge('필요', 'need') : badge('3단계 먼저', 'wait'))}
-    </div>
-    <div class="step-desc">방금 만든 에이전트가 이메일을 보낼 때 쓸 Gmail 정보를 입력합니다.</div>
-    ${agentDone ? `
-    <div id="config-form">
-      <label class="field">보낼 Gmail 주소 (발신)</label>
-      <input type="email" id="f-gmail" placeholder="you@gmail.com" value="${(STATE.config && STATE.config.gmail_sender) || ''}">
-      <label class="field">Gmail 앱 비밀번호</label>
-      <input type="password" id="f-pw" placeholder="${STATE.config && STATE.config.has_gmail_password ? '이미 저장되어 있습니다 (바꾸려면 새로 입력)' : '16자리'}">
-      <div class="hint">일반 로그인 비밀번호가 아닙니다 — 아래 "자세히 보기"에서 발급 방법을 확인하세요. 비워두면 기존에 저장된 값이 유지됩니다.</div>
-      <label class="field">받는 이메일 주소 (수신, 비워두면 발신 주소와 동일)</label>
-      <input type="email" id="f-recipient" placeholder="you@gmail.com" value="${(STATE.config && STATE.config.recipient) || ''}">
-      <label class="field">KRX(한국거래소) API 키 <span style="font-weight:400;color:var(--muted)">— 선택, 심화학습 ①에서 사용</span></label>
-      <input type="password" id="f-krx" placeholder="${STATE.config && STATE.config.has_krx_key ? '이미 저장되어 있습니다 (바꾸려면 새로 입력)' : '지금 없으면 비워두세요'}">
-      <div class="hint">data-dbg.krx.co.kr 에서 무료 발급받을 수 있습니다. 나중에 심화학습 단계에서 써도 됩니다.</div>
-      <div class="row"><button class="btn" onclick="saveConfig()">저장</button></div>
-    </div>` : ''}
-    <div class="log" id="log-config"></div>
-    <details><summary>자세히 보기 (Gmail 앱 비밀번호 발급법)</summary>
-      <div class="guide">
-        <ol>
-          <li>구글 계정에 <b>2단계 인증</b>이 켜져 있어야 합니다 (myaccount.google.com → 보안 → 2단계 인증).</li>
-          <li>myaccount.google.com/apppasswords 로 이동합니다.</li>
-          <li>앱 이름을 아무렇게나(예: "섹터리포트") 입력하고 생성을 누릅니다.</li>
-          <li>16자리 코드가 나오면 그대로 복사해서 위 "Gmail 앱 비밀번호" 칸에 붙여넣습니다(일반 로그인 비밀번호 아님!).</li>
+          <li>
+            터미널 화면 맨 아래에 다시 입력할 수 있는 커서(<code>&gt;</code> 표시)가 나타나고 더 이상 글자가 움직이지 않으면 다 끝난 거예요.
+            그러면 지금 보고 계신 <b>이 브라우저 창(마법사 화면)으로 다시 전환</b>해서, 아래 <b>"만들었어요, 확인하기"</b> 버튼을 눌러주세요 —
+            실제로 파일이 잘 만들어졌는지 자동으로 확인해줍니다. 터미널 창은 그대로 두거나 닫으셔도 됩니다.
+          </li>
         </ol>
       </div>
     </details>
@@ -207,10 +245,10 @@ function render() {
   <div class="step">
     <div class="step-head">
       <div class="step-title">5️⃣ 예약 발송 설정 + 테스트</div>
-      ${configDone ? '' : badge('4단계 먼저', 'wait')}
+      ${agentDone ? '' : badge('4단계 먼저', 'wait')}
     </div>
     <div class="step-desc">매일 자동으로 보내지도록 예약하고, 지금 바로 한 번 테스트 발송해봅니다.</div>
-    ${configDone ? `
+    ${agentDone ? `
     <label class="field">매일 몇 시에 보낼까요?</label>
     <div class="row">
       <input type="number" id="f-hour" min="0" max="23" value="7" style="width:70px">
@@ -226,7 +264,7 @@ function render() {
   </div>
 
   <div class="step" style="border-style:dashed;background:#fbfaf7">
-    <div class="step-head"><div class="step-title">🎓 심화 학습 (선택)</div>${configDone ? '' : badge('1~5단계 완료 후 도전', 'wait')}</div>
+    <div class="step-head"><div class="step-title">🎓 심화 학습 (선택)</div>${agentDone ? '' : badge('1~5단계 완료 후 도전', 'wait')}</div>
     <div class="step-desc">기본 버전이 잘 되면, 터미널에서 Claude Code한테 이렇게 더 시켜볼 수 있어요 — 안 하셔도 지금 상태로 충분히 잘 동작합니다.</div>
     <details><summary>다음 도전 과제 보기</summary>
       <div class="guide">
@@ -254,6 +292,136 @@ function render() {
         </div>
         <div class="hint">이 과정은 구글 클라우드 계정 가입이 필요하고, 사용량에 따라 비용이 발생할 수 있어요(작은 서버는 대부분 무료 등급 안에 들어갑니다). Claude Code가 단계마다 무엇을 클릭/입력해야 하는지 안내해줄 거예요.</div>
         이런 식으로 조금씩 요청을 더해가면서 원하는 모습으로 계속 발전시킬 수 있어요 — 이게 Claude Code를 쓰는 가장 자연스러운 방법입니다.
+      </div>
+    </details>
+  </div>
+
+  <div class="step" style="border-style:dashed;background:#fbfaf7">
+    <div class="step-head"><div class="step-title">🚀 다음 레벨: 나만의 자동매매 에이전트 만들기 (선택)</div>${agentDone ? '' : badge('1~5단계 완료 후 도전', 'wait')}</div>
+    <div class="step-desc">
+      여기까지 잘 따라오셨다면, 실제 증권사 API를 붙여서 <b>모의투자(가짜 돈)</b>로 자동매매까지 해볼 수 있어요.
+      진짜 돈은 전혀 쓰지 않으니 안심하세요. 다만 증권사 계좌 개설·클라우드 가입 등 여러 외부 서비스를 거쳐야 해서
+      위 단계들과 달리 <b>반나절~하루 정도 걸릴 수 있는 좀 더 본격적인 프로젝트</b>예요.
+    </div>
+    <details open><summary>준비 절차 + 만들 봇 전략 보기 (아주 상세 버전)</summary>
+      <div class="guide">
+
+        <div class="tip">
+          💬 <b>먼저 알아두세요:</b> Claude Code는 화면의 버튼을 대신 눌러줄 수 없어요 (증권사 사이트, 구글 클라우드 화면 같은
+          외부 웹사이트는 조작 못 합니다) — 그래서 계좌 개설이나 클라우드 콘솔 클릭 같은 건 직접 하셔야 해요.
+          하지만 <b>터미널 안에서 하는 모든 것</b>(코드 작성, 파일 만들기, 서버 설정, 실행, 문제 해결)은 Claude Code한테 말로 시키면 됩니다.
+          막히면 그냥 <b>"이 부분 잘 모르겠어, 쉽게 설명해줘"</b> 라고 말하면 돼요 — 이렇게 물어보는 것 자체가 Claude Code를 쓰는 정상적인 방법입니다.
+        </div>
+
+        <b>Ⅰ. 한국투자증권 모의투자 계좌 + API 키 준비</b> <span style="color:var(--muted);font-weight:400;">(직접 해야 하는 단계)</span><br>
+        실전투자가 아니라 <b>모의투자</b>(가상의 돈으로 연습하는 계좌)만 씁니다 — 잃을 돈이 없으니 안전해요.
+        <ol>
+          <li>한국투자증권 앱이나 홈페이지에서 비대면 계좌를 개설하세요 (신분증만 있으면 보통 10~15분).</li>
+          <li><a href="https://apiportal.koreainvestment.com" target="_blank" rel="noopener">KIS Developers 포털</a>에 접속해서 회원가입하세요.</li>
+          <li>로그인 후 상단 메뉴에서 "모의투자 신청"을 찾아 신청하세요 (승인까지 몇 분~몇 시간 걸릴 수 있어요).</li>
+          <li>승인되면 "나의 앱 관리" 같은 메뉴에서 앱을 하나 등록하면 <b>앱키(App Key)</b>와 <b>앱시크릿(App Secret)</b>이라는 긴 문자열 두 개를 줍니다. 메모장 같은 곳에 잠깐 복사해두세요.</li>
+          <li>모의투자 계좌번호도 함께 확인해두세요 (보통 <code>12345678-01</code> 형태의 8자리-2자리 숫자입니다).</li>
+        </ol>
+        <div class="hint">앱키/앱시크릿/계좌번호는 계좌 비밀번호와 같은 취급을 하세요 — 화면 캡처해서 남에게 보내거나 인터넷에 올리면 안 됩니다.</div>
+
+        <b>Ⅱ. 텔레그램 봇 만들기 (매매 리포트 받을 채널)</b> <span style="color:var(--muted);font-weight:400;">(직접 해야 하는 단계)</span><br>
+        <ol>
+          <li>휴대폰이나 PC의 텔레그램 앱에서 <code>BotFather</code>를 검색해서 대화를 시작하세요 (파란 체크가 붙은 공식 봇이에요).</li>
+          <li><code>/newbot</code>이라고 입력하고 Enter — 봇 이름과 아이디를 순서대로 물어봅니다. 아무렇게나 정하시면 됩니다 (아이디는 끝에 꼭 <code>bot</code>이 들어가야 해요, 예: <code>my_sector_bot</code>).</li>
+          <li>다 만들어지면 <b>긴 토큰 문자열</b>을 줍니다 (예: <code>123456789:AAExample...</code>). 그대로 복사해두세요.</li>
+          <li>방금 만든 내 봇을 텔레그램에서 검색해 들어가서, <code>/start</code>나 아무 메시지나 하나 보내두세요 (이게 "내 채팅방 번호"를 알아내는 데 필요해요).</li>
+        </ol>
+        <div class="tip">
+          💬 <b>"챗 아이디"를 어떻게 알아내는지 모르겠다면?</b> 나중에 Ⅴ단계에서 Claude Code한테 이렇게 물어보세요:
+          <br><code>"방금 만든 텔레그램 봇 토큰이 여기 있어(토큰 붙여넣기). 내 챗 아이디를 알아내는 방법을 알려주고, 확인까지 도와줘."</code>
+          Claude Code가 확인용 링크나 방법을 알려주고, 알아낸 챗 아이디를 코드에 바로 넣어줄 거예요.
+        </div>
+
+        <b>Ⅲ. 구글 클라우드(GCP)에 24시간 서버 만들기</b> <span style="color:var(--muted);font-weight:400;">(직접 클릭해야 하는 부분)</span><br>
+        자동매매 봇은 내 컴퓨터를 꺼도 계속 돌아야 하니, 항상 켜져 있는 작은 클라우드 서버가 필요해요. 처음이면 낯설 수 있는데, 하나씩만 따라오시면 됩니다.
+        <ol>
+          <li><a href="https://console.cloud.google.com" target="_blank" rel="noopener">console.cloud.google.com</a>에 접속해서 평소 쓰는 구글 계정으로 로그인하세요.</li>
+          <li>처음이면 "무료로 시작하기"가 뜹니다 — 국가/약관에 동의하고 신용카드 정보를 입력하세요.
+            <div class="tip">💬 신용카드를 넣으라고 해서 걱정되시나요? 본인 확인용이고, 별도로 "결제 계정 업그레이드"를 직접 누르지 않는 이상 자동으로 돈이 빠져나가지 않아요. 게다가 이런 초소형 서버 1대는 대부분 무료 등급 범위 안에 들어갑니다. 그래도 불안하면 Claude Code한테 <code>"구글 클라우드 무료 등급 조건이랑, 내가 지금 결제 계정 상태가 어떤지 확인하는 법을 알려줘"</code>라고 물어보고 진행하세요.</div>
+          </li>
+          <li>화면 상단의 "프로젝트 선택" → "새 프로젝트"를 눌러 이름을 정하고(예: <code>my-trading-bot</code>) 만드세요.</li>
+          <li>왼쪽 ☰ 메뉴(또는 검색창)에서 <b>"Compute Engine"</b>을 찾아 들어가세요. 처음이면 "사용 설정" 버튼이 뜨는데, 누르고 1분 정도 기다리세요.</li>
+          <li>"인스턴스 만들기" 버튼을 누르고:
+            <ul>
+              <li>이름: 아무렇게나 (예: <code>trading-bot</code>)</li>
+              <li>리전: <b>us-west1, us-central1, us-east1</b> 중 하나를 고르면 평생 무료 등급에 포함될 가능성이 높아요. 서울(<code>asia-northeast3</code>)을 고르면 반응은 더 빠르지만 무료 등급 대상이 아닐 수 있어, 처음 90일 무료체험 크레딧이 끝난 뒤 한 달에 몇 달러 정도 청구될 수 있습니다. 확실하지 않으면 화면에 "무료 등급 사용 가능" 문구가 뜨는지 직접 확인하세요.</li>
+              <li>머신 유형: <code>e2-micro</code> (가장 작고 무료 등급에 해당하는 사양)</li>
+              <li>나머지는 기본값 그대로 두고 맨 아래 "만들기"를 누르세요.</li>
+            </ul>
+          </li>
+          <li>30초~1분 뒤 인스턴스 목록에 방금 만든 서버가 나타납니다. 그 줄 오른쪽의 <b>"SSH"</b> 버튼을 누르세요 — 아무것도 설치할 필요 없이, 브라우저 안에 새 창으로 검은 터미널 화면이 바로 뜹니다. <b>이제부터 이 창이 여러분의 "24시간 서버 터미널"입니다.</b></li>
+        </ol>
+        <div class="hint">이 SSH 터미널은 지금 이 마법사가 켜진 내 컴퓨터가 아니라, 구글 클라우드에 있는 완전히 별도의 컴퓨터입니다 — 이 창을 닫아도 서버 자체는 계속 켜져 있어요.</div>
+
+        <b>Ⅳ. 그 서버(SSH 터미널) 안에서 Claude Code 설치 & 로그인</b> <span style="color:var(--muted);font-weight:400;">(여기부터는 앞의 1·2단계와 같은 패턴)</span><br>
+        방금 연 SSH 터미널 창에 그대로 아래를 순서대로 입력하세요.
+        <ol>
+          <li><code>node --version</code> 입력 후 Enter — 버전 숫자가 나오면 이미 설치되어 있는 것, <code>command not found</code>가 나오면 설치가 필요합니다.</li>
+          <li>Node.js가 없다면: <code>sudo apt-get update && sudo apt-get install -y nodejs npm</code></li>
+          <li><code>npm install -g @anthropic-ai/claude-code</code> — Claude Code를 설치합니다.</li>
+          <li><code>claude</code>라고 입력하고 Enter — 로그인 링크가 나오면 눌러서(또는 링크를 복사해 새 탭에 붙여넣어) 로그인하세요. 앞서 로컬 컴퓨터에서 로그인할 때와 똑같은 방식이에요.</li>
+        </ol>
+        <div class="tip">💬 이 단계에서 뭔가 에러가 나거나 이해 안 가는 메시지가 뜨면, 당황하지 말고 <code>claude</code>를 실행한 채로 그 에러 메시지를 그대로 붙여넣고 <code>"이 에러가 무슨 뜻이야? 어떻게 해결해?"</code>라고 물어보세요.</div>
+
+        <b>Ⅴ. 자동매매 봇 만들기 — Claude Code에게 시킬 실제 문장</b><br>
+        같은 터미널(Ⅳ에서 로그인까지 마친 그 화면)에 아래 문장을 <b>그대로 복사해서</b> 붙여넣고 Enter를 누르세요:
+        <div style="background:#1e1e1e;color:#e8e8e8;padding:10px;border-radius:6px;font-family:monospace;font-size:12px;margin:8px 0;user-select:all;">
+          한국투자증권 모의투자 API로 간단한 자동매매 봇을 만들고 싶어. trading_bot이라는 폴더를 새로 만들어서 그 안에 코드를 넣어줘.
+          전략은 이렇게 해줘: 매일 장이 시작하면(시가) 내가 정한 종목을 매수하고, 매수가보다 2% 오르면 바로 매도해서 수익을 실현해줘.
+          만약 장 마감 직전까지 2%에 도달하지 못하면 그냥 종가 근처에서 강제로 매도해서 그날 안에 포지션을 정리해줘.
+          매수/매도할 때마다 체결가와 수익률을 텔레그램으로 보고해줘. 증권사 앱키·앱시크릿·계좌번호, 텔레그램 봇 토큰은
+          전부 trading_bot/.env 파일에서 읽게 해주고, 매일 자동으로 실행되도록 크론(cron)으로 등록해줘.
+        </div>
+        <ol start="1">
+          <li>Claude Code가 코드를 작성하는 과정이 화면에 나타납니다. 중간에 "종목 코드가 뭐야?", "앱키를 알려줘" 같은 질문을 할 수 있어요 — Ⅰ·Ⅱ에서 준비해둔 값들을 그때그때 편하게 답하시면 됩니다.</li>
+          <li>다 만들어지면(터미널 커서가 멈추면) 아래 <b>".env 파일 채우기"</b>로 넘어가세요.</li>
+        </ol>
+
+        <div class="warnbox">
+          📁 <b>.env 파일은 정확히 어디에, 어떻게 넣나요?</b><br>
+          앞에서 만든 "이메일 섹터 리포트" 에이전트는 이 마법사 화면(3단계 폼)이 <code>.env</code>를 대신 관리해줬지만,
+          지금 만드는 이 자동매매 봇은 마법사가 관리하지 않는 <b>완전히 별도의 새 프로젝트</b>라서 이 값들은 직접 넣어야 해요.
+          가장 쉬운 방법은 <b>Claude Code한테 시키는 것</b>입니다 — 이 SSH 터미널 화면에 그대로 이렇게 입력하세요:
+          <div style="background:#1e1e1e;color:#e8e8e8;padding:10px;border-radius:6px;font-family:monospace;font-size:12px;margin:8px 0;user-select:all;">
+            trading_bot/.env 파일에 아래 값들을 넣어줘:
+            앱키는 (여기에 Ⅰ에서 받은 앱키), 앱시크릿은 (여기에 앱시크릿),
+            계좌번호는 (여기에 계좌번호), 텔레그램 봇 토큰은 (여기에 Ⅱ에서 받은 토큰)이야.
+          </div>
+          이렇게 하면 Claude Code가 파일을 직접 열어서 알맞은 형식으로 저장해줍니다 — 어느 폴더의 어떤 파일인지 몰라도 됩니다.
+          (참고: 이 값들은 모의투자용이라 실제 돈과는 연결되어 있지 않지만, 그래도 비밀번호처럼 남에게 공유하지는 마세요.)
+          <br><br>
+          직접 열어서 편집하고 싶다면: 이 SSH 터미널에는 메모장이 없으니 <code>nano trading_bot/.env</code>라고 입력하면 화면 안에서 바로 편집할 수 있는 간단한 편집기가 열립니다.
+          값을 다 입력한 뒤 <code>Ctrl+O</code> → Enter(저장) → <code>Ctrl+X</code>(나가기) 순서로 누르면 됩니다.
+        </div>
+
+        <div class="tip">
+          💬 <b>정말 잘 만들어졌는지, 잘 돌아가는지 확인하고 싶다면</b> 이렇게 물어보세요:
+          <br><code>"봇을 만들어서 VM에 올려서 잘 돌아가게 해줘. 지금 당장 한 번 테스트로 실행해보고, crontab에도 잘 등록됐는지 확인해줘."</code>
+          Claude Code가 테스트 실행 → 결과 확인 → 자동 실행 등록까지 순서대로 진행하면서 진행 상황을 알려줄 거예요.
+        </div>
+
+        <b>Ⅵ. (보너스) 매매내역 리포트 기능 추가하기</b><br>
+        봇이 며칠 돌아간 뒤에는, 그동안의 매매 결과를 정리해서 보고받는 기능도 유용해요. 같은 터미널에서 이렇게 시켜보세요:
+        <div style="background:#1e1e1e;color:#e8e8e8;padding:10px;border-radius:6px;font-family:monospace;font-size:12px;margin:8px 0;user-select:all;">
+          매일 장 마감 후에, 오늘 이 봇이 실제로 매매한 내역(몇 번 사고팔았는지, 이겼는지 졌는지, 오늘 실현손익은 얼마인지)을
+          정리해서 텔레그램으로 요약 보고해주는 기능도 추가해줘. 이것도 매일 자동으로 실행되도록 크론에 등록해줘.
+        </div>
+        <div class="tip">
+          💬 <b>더 발전시키고 싶다면</b> 이런 식으로 계속 대화하면서 요청하면 됩니다: <code>"승률이랑 평균 수익률도 같이 보여줘"</code>,
+          <code>"이번 주 전체 성과를 일요일 저녁에 한 번 더 요약해서 보내줘"</code> 등 — 정답이 정해진 게 아니라, 원하는 걸 편하게 말로 요청하면서 조금씩 발전시켜 나가는 게 Claude Code를 쓰는 방법입니다.
+        </div>
+
+        <b>Ⅶ. 잊지 마세요</b>
+        <ul>
+          <li>연습 단계에서는 <b>절대 실전투자 계좌로 바꾸지 마세요</b> — 모의투자로 충분히 오래 지켜본 뒤에 신중하게 결정할 문제예요.</li>
+          <li>증권사 모의투자 API는 너무 자주 조회하면 일시적 오류가 날 수 있어요 — 이상 동작이 보이면 <code>"너무 자주 조회하는 것 같은데 재시도 로직을 넣어줘"</code>라고 요청하세요.</li>
+          <li>서버 요금이 걱정되면 언제든 GCP 콘솔에서 해당 인스턴스를 "중지" 또는 "삭제"할 수 있어요 — 헷갈리면 Claude Code한테 <code>"이 구글 클라우드 서버를 요금 안 나가게 완전히 정리하는 방법을 알려줘"</code>라고 물어보세요.</li>
+        </ul>
       </div>
     </details>
   </div>
