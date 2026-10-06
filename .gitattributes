@@ -1,0 +1,5 @@
+# cmd.exe는 LF 줄바꿈 .bat 파일에서 오동작할 수 있으므로 항상 CRLF로 저장한다.
+*.bat text eol=crlf
+# 메모장 호환을 위해 사용법.txt도 CRLF
+*.txt text eol=crlf
+*.png binary

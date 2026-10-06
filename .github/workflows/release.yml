@@ -1,0 +1,45 @@
+# v* 태그를 푸시하면 배포 zip을 만들어 같은 이름의 GitHub Release에 첨부한다.
+# 릴리스가 아직 없으면 "초안(draft)"으로 만들어두므로, 내용을 확인한 뒤 직접 공개(Publish)하면 된다.
+name: Release zip
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: 검사
+        run: |
+          node --check server.js
+          node --test test/*.test.js
+      - name: zip 만들기 (agent/, .env 제외 확인 포함)
+        id: zip
+        run: |
+          VERSION="${GITHUB_REF_NAME}"
+          [ "${GITHUB_REF_TYPE}" = "tag" ] || VERSION="manual-${GITHUB_SHA::7}"
+          OUT=$(python3 scripts/build_release.py "$VERSION" | head -n1)
+          unzip -l "$OUT"
+          if unzip -Z1 "$OUT" | grep -E '(^|/)agent/|\.env$'; then echo "금지된 파일 포함"; exit 1; fi
+          echo "file=$OUT" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: claude_setup_wizard
+          path: ${{ steps.zip.outputs.file }}
+      - name: Release에 첨부
+        if: github.ref_type == 'tag'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" "${{ steps.zip.outputs.file }}" --clobber
+          else
+            gh release create "$TAG" "${{ steps.zip.outputs.file }}" --draft --title "$TAG" --notes "Claude Code 설치 마법사 $TAG"
+          fi
