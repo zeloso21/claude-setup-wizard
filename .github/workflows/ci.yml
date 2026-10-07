@@ -1,0 +1,26 @@
+name: CI
+on:
+  pull_request:
+  push:
+    branches: [master]
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: server.js 문법 검사
+        run: node --check server.js
+      - name: start.bat ASCII 검사
+        run: |
+          if LC_ALL=C grep -n '[^[:print:][:space:]]' start.bat; then
+            echo "start.bat에 ASCII가 아닌 문자가 있습니다"; exit 1
+          fi
+      - name: 테스트 (node:test)
+        run: node --test test/*.test.js
+      - name: 배포 zip 시험 빌드
+        run: python3 scripts/build_release.py ci

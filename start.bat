@@ -1,58 +1,67 @@
 @echo off
+setlocal
 title Claude Code Setup Wizard
-echo ============================================
-echo   Claude Code Setup Wizard - starting up
-echo ============================================
+cd /d "%~dp0"
+rem ---------------------------------------------------------------
+rem  IMPORTANT: keep this file ASCII only (no Korean). cmd.exe breaks
+rem  non-ASCII text in .bat files. All Korean guidance is shown in
+rem  the browser (public\node-install.html and server.js pages).
+rem ---------------------------------------------------------------
+echo ==============================================
+echo   Claude Code Setup Wizard
+echo ==============================================
 echo.
-echo Step 1 of 2: Checking whether Node.js is installed on this computer.
-echo (Node.js is required both to run this wizard and to run Claude Code itself.)
-echo.
+echo [1/2] Checking for Node.js ...
 
 where node >nul 2>nul
-if errorlevel 1 (
-    echo Node.js was NOT found on this computer.
-    echo.
-    echo This wizard will now try to install it automatically using "winget"
-    echo ^(the official installer tool built into Windows 10/11^).
-    echo A separate installer window may briefly appear on its own - that is normal,
-    echo please just wait for it to finish.
-    echo.
-    where winget >nul 2>nul
-    if errorlevel 1 (
-        echo winget is not available on this computer, so it cannot be installed automatically.
-        echo Please install Node.js manually instead, then come back:
-        echo   1. Open https://nodejs.org in your web browser
-        echo   2. Download and run the "LTS" version installer ^(click Next / Next / Finish^)
-        echo   3. After it finishes, close this window and double-click start.bat again
-        echo.
-        pause
-        exit /b 1
-    )
-    echo Installing Node.js now, this can take one to two minutes. Please wait...
-    echo.
-    winget install -e --id OpenJS.NodeJS.LTS --silent --accept-package-agreements --accept-source-agreements
-    echo.
-    echo ============================================
-    echo   Node.js install finished.
-    echo   IMPORTANT: please CLOSE this window now,
-    echo   then double-click start.bat again so the
-    echo   new installation can be detected properly.
-    echo ============================================
-    echo.
-    pause
-    exit /b 0
+if not errorlevel 1 goto run
+
+rem Node.js may already be installed but not yet on PATH (right after install).
+if exist "%ProgramFiles%\nodejs\node.exe" (
+    set "PATH=%ProgramFiles%\nodejs;%PATH%"
+    goto run
 )
 
-echo Node.js was found - good, moving on.
 echo.
-echo Step 2 of 2: Starting the setup wizard.
-echo A browser window should open by itself in a few seconds.
-echo If it does not open automatically, look below for a web address
-echo starting with "http://127.0.0.1" and open that in your browser.
+echo Node.js is not installed yet.
+echo A help page (in Korean) is opening in your browser now.
+start "" "%~dp0public\node-install.html"
+
+where winget >nul 2>nul
+if errorlevel 1 goto nowinget
+
 echo.
-echo Please keep THIS black window open in the background while you use
-echo the wizard in your browser - closing this window will stop the wizard.
-echo From here on, all instructions will appear inside the browser window.
+echo Installing Node.js LTS with winget (the installer built into Windows).
+echo Windows may ask "Do you want to allow this app to make changes?"
+echo Please click "Yes". It can take 1 to 3 minutes. Please wait...
+echo.
+winget install -e --id OpenJS.NodeJS.LTS --silent --accept-package-agreements --accept-source-agreements
+if exist "%ProgramFiles%\nodejs\node.exe" (
+    set "PATH=%ProgramFiles%\nodejs;%PATH%"
+    echo.
+    echo Node.js is installed. Continuing...
+    goto run
+)
+echo.
+echo Node.js could not be installed automatically.
+echo Please follow the help page in your browser, then run start.bat again.
+echo.
+pause
+exit /b 1
+
+:nowinget
+echo.
+echo Automatic install is not available on this PC (winget not found).
+echo Please follow the help page in your browser, then run start.bat again.
+echo.
+pause
+exit /b 1
+
+:run
+echo.
+echo [2/2] Starting the wizard. Your browser will open in a few seconds.
+echo Keep THIS window open while you use the wizard.
+echo Closing this window stops the wizard.
 echo.
 node "%~dp0server.js"
-pause
+if errorlevel 1 pause

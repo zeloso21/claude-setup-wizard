@@ -2,479 +2,1164 @@
 <html lang="ko">
 <head>
 <meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Claude Code 설치 마법사</title>
 <style>
   :root {
-    --bg:#f7f7f5; --card:#ffffff; --border:#e5e3dd; --ink:#1a1a1a; --muted:#767267;
-    --accent:#c15f3c; --accent-soft:#f3e3db; --ok:#2f7a4f; --ok-soft:#e5f3ea;
-    --warn:#b5872a; --warn-soft:#faf1de;
+    --bg:#f6f5f1; --card:#ffffff; --border:#e2dfd6; --ink:#1d1b17; --muted:#5f5b52;
+    --accent:#b9532f; --accent-ink:#ffffff; --accent-soft:#f7e6dd;
+    --ok:#22703f; --ok-soft:#e3f2e8; --warn:#8a5a00; --warn-soft:#fbf0d6;
+    --err:#b42318; --err-soft:#fdebe9; --info:#1f5d99; --info-soft:#e7f0fa;
+    --code-bg:#1f1f1f; --code-ink:#f1f1f1;
   }
   * { box-sizing: border-box; }
-  body { margin:0; background:var(--bg); color:var(--ink); font-family:'Segoe UI','Malgun Gothic',sans-serif; }
-  header { padding:32px 24px 8px; max-width:760px; margin:0 auto; }
-  header h1 { font-size:22px; margin:0 0 6px; }
-  header p { color:var(--muted); font-size:14px; margin:0; line-height:1.6; }
-  main { max-width:760px; margin:0 auto; padding:16px 24px 60px; }
-  .step { background:var(--card); border:1px solid var(--border); border-radius:10px; padding:20px 22px; margin-bottom:14px; }
-  .step.done { opacity:0.75; }
-  .step-head { display:flex; align-items:center; justify-content:space-between; gap:12px; }
-  .step-title { font-size:16px; font-weight:600; display:flex; align-items:center; gap:8px; }
-  .badge { font-size:12px; padding:3px 10px; border-radius:20px; font-weight:600; white-space:nowrap; }
-  .badge.need { background:var(--warn-soft); color:var(--warn); }
-  .badge.ok { background:var(--ok-soft); color:var(--ok); }
-  .badge.wait { background:#eee; color:#888; }
-  .step-desc { color:var(--muted); font-size:13.5px; margin:8px 0 4px; line-height:1.7; }
-  .btn { background:var(--accent); color:#fff; border:none; padding:9px 16px; border-radius:7px; font-size:13.5px; cursor:pointer; font-weight:600; }
-  .btn:hover { opacity:0.9; }
-  .btn.secondary { background:#fff; color:var(--accent); border:1px solid var(--accent); }
-  .btn:disabled { background:#ccc; cursor:not-allowed; }
-  .row { display:flex; gap:10px; margin-top:10px; flex-wrap:wrap; align-items:center; }
-  details { margin-top:10px; }
-  summary { cursor:pointer; font-size:13px; color:var(--accent); font-weight:600; }
-  .guide { background:#fafaf8; border:1px dashed var(--border); border-radius:8px; padding:14px 16px; margin-top:8px; font-size:13px; line-height:1.9; color:#444; }
-  .guide ol, .guide ul { margin:6px 0; padding-left:20px; }
-  .guide code { background:#eee; padding:1px 5px; border-radius:4px; }
-  .log { background:#1e1e1e; color:#c8f0c8; font-family:monospace; font-size:12px; padding:12px; border-radius:8px; margin-top:10px; white-space:pre-wrap; max-height:220px; overflow-y:auto; display:none; }
-  input[type=text], input[type=email], input[type=password], input[type=number] {
-    width:100%; padding:9px 10px; border:1px solid var(--border); border-radius:7px; font-size:13.5px; margin-top:6px;
+  html { -webkit-text-size-adjust: 100%; }
+  body { margin:0; background:var(--bg); color:var(--ink); font-family:'Malgun Gothic','Apple SD Gothic Neo','Segoe UI','Noto Sans KR',sans-serif; font-size:17px; line-height:1.65; }
+  a { color:var(--info); }
+  button { font-family:inherit; }
+  .wrap { max-width:880px; margin:0 auto; padding:0 16px; }
+
+  /* 머리글 + 진행 막대 */
+  .top { position:sticky; top:0; z-index:10; background:rgba(246,245,241,.96); border-bottom:1px solid var(--border); backdrop-filter:blur(4px); }
+  .top .wrap { padding-top:12px; padding-bottom:10px; }
+  .brand { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; }
+  .brand h1 { font-size:20px; margin:0; }
+  .live { font-size:14px; color:var(--muted); display:flex; align-items:center; gap:6px; }
+  .live .pulse { width:9px; height:9px; border-radius:50%; background:var(--ok); box-shadow:0 0 0 0 rgba(34,112,63,.5); animation:pulse 2s infinite; }
+  .live.down .pulse { background:var(--err); animation:none; }
+  @keyframes pulse { 0%{box-shadow:0 0 0 0 rgba(34,112,63,.5)} 70%{box-shadow:0 0 0 8px rgba(34,112,63,0)} 100%{box-shadow:0 0 0 0 rgba(34,112,63,0)} }
+  .progress { display:grid; grid-template-columns:repeat(6,1fr); gap:6px; margin-top:10px; }
+  .seg { border:0; background:transparent; padding:0; cursor:pointer; text-align:left; color:var(--muted); }
+  .seg:disabled { cursor:default; }
+  .seg .bar { height:8px; border-radius:4px; background:#dcd8cd; }
+  .seg .lbl { display:flex; gap:5px; align-items:center; font-size:14px; margin-top:5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .seg .n { display:inline-flex; width:22px; height:22px; border-radius:50%; align-items:center; justify-content:center; font-size:12.5px; font-weight:700; background:#dcd8cd; color:#4a463e; flex:none; }
+  .seg.done .bar, .seg.done .n { background:var(--ok); color:#fff; }
+  .seg.done .lbl { color:var(--ok); }
+  .seg.error .bar, .seg.error .n { background:var(--err); color:#fff; }
+  .seg.doing .bar { background:repeating-linear-gradient(45deg,var(--accent) 0 8px,#d9805f 8px 16px); }
+  .seg.current .lbl { color:var(--ink); font-weight:700; }
+  .seg.current .bar { outline:2px solid var(--ink); outline-offset:2px; }
+  .seg.current .n { background:var(--ink); color:#fff; }
+  .seg.current.done .n { background:var(--ok); }
+  .where { font-size:14.5px; color:var(--muted); margin-top:6px; }
+  .where b { color:var(--ink); }
+
+  main { padding:20px 0 120px; }
+  .card { background:var(--card); border:1px solid var(--border); border-radius:14px; padding:24px; }
+  .kicker { font-size:14px; color:var(--accent); font-weight:700; letter-spacing:.02em; }
+  .card h2 { font-size:25px; margin:2px 0 14px; display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+  .pill { font-size:14px; padding:3px 11px; border-radius:20px; font-weight:700; white-space:nowrap; }
+  .pill.todo { background:#ecebe6; color:#4a463e; }
+  .pill.doing { background:var(--accent-soft); color:var(--accent); }
+  .pill.done { background:var(--ok-soft); color:var(--ok); }
+  .pill.error { background:var(--err-soft); color:var(--err); }
+  .purpose { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:16px; }
+  .purpose > div { background:#faf9f6; border:1px solid var(--border); border-radius:10px; padding:12px 14px; font-size:16px; }
+  .purpose b { display:block; font-size:14px; color:var(--muted); margin-bottom:2px; }
+  h3 { font-size:19px; margin:22px 0 8px; }
+  p { margin:8px 0; }
+  .muted { color:var(--muted); }
+  .small { font-size:14.5px; }
+
+  .btn { display:inline-flex; align-items:center; justify-content:center; gap:8px; min-height:50px; background:var(--accent); color:var(--accent-ink); border:2px solid var(--accent); padding:10px 22px; border-radius:10px; font-size:17.5px; cursor:pointer; font-weight:700; text-decoration:none; }
+  .btn:hover { filter:brightness(1.06); }
+  .btn:focus-visible, .seg:focus-visible, .chk input:focus-visible, select:focus-visible, input:focus-visible { outline:3px solid #2b6cb0; outline-offset:2px; }
+  .btn.secondary { background:#fff; color:var(--accent); }
+  .btn.plain { background:#fff; color:var(--ink); border-color:var(--border); }
+  .btn.small { min-height:40px; font-size:15.5px; padding:6px 14px; }
+  .btn.ok { background:var(--ok); border-color:var(--ok); }
+  .btn:disabled { background:#d6d3cb; border-color:#d6d3cb; color:#6d695f; cursor:not-allowed; filter:none; }
+  .row { display:flex; gap:10px; margin-top:12px; flex-wrap:wrap; align-items:center; }
+  .nav { display:flex; justify-content:space-between; gap:10px; margin-top:26px; padding-top:18px; border-top:1px solid var(--border); flex-wrap:wrap; }
+
+  .state { display:flex; align-items:flex-start; gap:12px; border-radius:10px; padding:14px 16px; margin:14px 0; font-size:16.5px; }
+  .state .ico { font-size:22px; line-height:1.2; flex:none; }
+  .state.done { background:var(--ok-soft); color:#174d2c; }
+  .state.todo { background:#f1f0eb; }
+  .state.doing { background:var(--accent-soft); }
+  .state.warn { background:var(--warn-soft); color:#5c3d00; }
+  .state.info { background:var(--info-soft); color:#173f66; }
+  .spinner { width:20px; height:20px; border:3px solid rgba(185,83,47,.25); border-top-color:var(--accent); border-radius:50%; animation:spin 1s linear infinite; flex:none; margin-top:3px; }
+  @keyframes spin { to { transform:rotate(360deg); } }
+
+  .errbox { border:2px solid var(--err); background:var(--err-soft); border-radius:12px; padding:16px 18px; margin:14px 0; }
+  .errbox .t { font-weight:800; color:var(--err); font-size:18px; }
+  .errbox .lab { font-weight:700; margin-top:8px; }
+  .errbox ol { margin:4px 0 4px; padding-left:22px; }
+  pre.raw { background:var(--code-bg); color:var(--code-ink); padding:12px; border-radius:8px; white-space:pre-wrap; word-break:break-all; font-size:13.5px; max-height:260px; overflow:auto; margin:8px 0; }
+
+  details { margin:10px 0; }
+  summary { cursor:pointer; font-weight:700; color:var(--accent); padding:4px 0; }
+  .stuck { margin-top:18px; }
+  .stuck-panel { border:1px solid var(--border); border-radius:12px; background:#fffdf8; padding:6px 16px; margin-top:10px; }
+  .stuck-panel details { border-bottom:1px solid var(--border); margin:0; padding:8px 0; }
+  .stuck-panel details:last-child { border-bottom:0; }
+  .stuck-panel summary { color:var(--ink); }
+  .stuck-panel .ans { padding:6px 0 4px 4px; font-size:16px; }
+  .stuck-panel .ans ol, .stuck-panel .ans ul { margin:4px 0; padding-left:22px; }
+
+  .steps-ol { counter-reset:s; list-style:none; padding:0; margin:10px 0; }
+  .steps-ol > li { counter-increment:s; position:relative; padding:4px 0 10px 44px; }
+  .steps-ol > li::before { content:counter(s); position:absolute; left:0; top:2px; width:32px; height:32px; border-radius:50%; background:var(--ink); color:#fff; font-weight:800; display:flex; align-items:center; justify-content:center; font-size:16px; }
+
+  .prompt { background:var(--code-bg); color:var(--code-ink); border-radius:10px; padding:14px 16px; font-size:15px; white-space:pre-wrap; line-height:1.6; margin:8px 0; max-height:320px; overflow:auto; }
+  .kbd { display:inline-block; border:1px solid #b9b5aa; border-bottom-width:3px; border-radius:6px; padding:0 7px; font-size:14.5px; background:#fff; font-family:Consolas,monospace; color:var(--ink); }
+  code { background:#ecebe6; padding:1px 6px; border-radius:5px; font-size:.92em; }
+
+  label.field { display:block; font-weight:700; margin-top:16px; }
+  .field-hint { font-size:14.5px; color:var(--muted); margin-top:3px; }
+  input[type=text], input[type=email], input[type=password], select { width:100%; max-width:480px; padding:12px 12px; border:2px solid #cfcbc0; border-radius:9px; font-size:17px; margin-top:6px; background:#fff; color:var(--ink); }
+  select { width:auto; }
+  .saved-tag { display:inline-block; font-size:14px; color:var(--ok); background:var(--ok-soft); padding:1px 9px; border-radius:12px; margin-left:6px; font-weight:700; }
+  .counter { font-size:14.5px; margin-top:4px; }
+  .counter.good { color:var(--ok); font-weight:700; }
+  .counter.bad { color:var(--err); }
+
+  .checklist { list-style:none; padding:0; margin:12px 0; }
+  .chk { display:flex; gap:12px; align-items:flex-start; padding:12px 14px; border:2px solid var(--border); border-radius:10px; margin-bottom:8px; cursor:pointer; background:#fff; }
+  .chk.on { border-color:var(--ok); background:#f5fbf7; }
+  .chk input { width:26px; height:26px; margin:1px 0 0; accent-color:var(--ok); flex:none; }
+  .chk .sub { font-size:14.5px; color:var(--muted); }
+  .can-do { margin:8px 0 4px; padding-left:0; list-style:none; }
+  .can-do li { padding:6px 0 6px 38px; position:relative; }
+  .can-do li span.b { position:absolute; left:0; top:6px; width:28px; height:28px; border-radius:8px; background:var(--accent-soft); display:flex; align-items:center; justify-content:center; }
+  .facts { display:flex; gap:10px; flex-wrap:wrap; margin:12px 0; }
+  .fact { background:#faf9f6; border:1px solid var(--border); border-radius:10px; padding:8px 14px; font-size:15.5px; }
+
+  /* 화면 모형(그림 안내) */
+  .mock-grid { display:grid; grid-template-columns:1fr 1fr; gap:14px; margin:12px 0; }
+  .mock-step { border:1px solid var(--border); border-radius:12px; padding:12px; background:#fff; }
+  .mock-step .cap { font-weight:700; margin-bottom:8px; display:flex; gap:8px; align-items:flex-start; }
+  .mock-step .cap .num { flex:none; width:28px; height:28px; border-radius:50%; background:var(--ink); color:#fff; display:flex; align-items:center; justify-content:center; font-size:15px; }
+  .mock { border:1px solid #c9c5ba; border-radius:8px; overflow:hidden; background:#fff; font-size:13.5px; font-family:Arial,'Malgun Gothic',sans-serif; }
+  .mock-bar { background:#ebe9e3; padding:6px 8px; display:flex; align-items:center; gap:6px; }
+  .mock-bar i { width:9px; height:9px; border-radius:50%; background:#c9c5ba; display:inline-block; }
+  .mock-url { flex:1; background:#fff; border-radius:12px; padding:2px 10px; color:#444; font-size:12.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .mock-body { padding:12px; position:relative; min-height:118px; }
+  .mock-h { font-size:15px; font-weight:700; margin-bottom:8px; color:#202124; }
+  .mock-row { display:flex; justify-content:space-between; align-items:center; border:1px solid #e3e3e3; border-radius:6px; padding:7px 10px; margin-bottom:6px; color:#3c4043; }
+  .mock-toggle { width:34px; height:18px; border-radius:9px; background:#1a73e8; position:relative; }
+  .mock-toggle::after { content:''; position:absolute; right:2px; top:2px; width:14px; height:14px; border-radius:50%; background:#fff; }
+  .mock-input { border:1px solid #9aa0a6; border-radius:4px; padding:6px 8px; color:#202124; margin:4px 0 8px; }
+  .mock-btn { display:inline-block; background:#1a73e8; color:#fff; border-radius:16px; padding:4px 14px; font-weight:700; }
+  .mock-yellow { background:#fdf3c4; border-radius:6px; padding:10px; text-align:center; font-family:Consolas,monospace; font-size:17px; letter-spacing:1px; color:#202124; }
+  .mock-term { background:#111; color:#e6e6e6; font-family:Consolas,monospace; font-size:12.5px; padding:10px; min-height:118px; white-space:pre-wrap; line-height:1.5; }
+  .mock-term .hl { background:#3a3a3a; color:#fff; }
+  .mark { outline:3px solid #e8590c; outline-offset:2px; border-radius:6px; position:relative; }
+  .pin { position:absolute; width:24px; height:24px; border-radius:50%; background:#e8590c; color:#fff; font-weight:800; font-size:13px; display:flex; align-items:center; justify-content:center; box-shadow:0 1px 3px rgba(0,0,0,.3); }
+
+  .banner { border-radius:12px; padding:14px 18px; margin-bottom:14px; display:flex; gap:12px; align-items:center; justify-content:space-between; flex-wrap:wrap; }
+  .banner.err { background:var(--err-soft); border:2px solid var(--err); }
+  .banner.ok { background:var(--ok-soft); border:2px solid var(--ok); }
+  .toast { position:fixed; left:50%; bottom:24px; transform:translateX(-50%); background:#1d1b17; color:#fff; padding:12px 20px; border-radius:10px; font-size:16px; z-index:50; max-width:calc(100% - 32px); box-shadow:0 4px 16px rgba(0,0,0,.25); }
+  .twocol { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+  .box { border:1px solid var(--border); border-radius:12px; padding:14px 16px; background:#fff; }
+  .tag { display:inline-block; font-size:13px; font-weight:700; padding:1px 8px; border-radius:6px; background:#ecebe6; color:#4a463e; }
+
+  /* 데모 모드 조작판 */
+  .demo { position:fixed; right:12px; bottom:12px; z-index:40; background:#1d1b17; color:#fff; border-radius:12px; padding:10px 12px; font-size:13.5px; width:300px; box-shadow:0 6px 24px rgba(0,0,0,.3); }
+  .demo b { color:#ffd8a8; }
+  .demo .r { display:flex; gap:4px; flex-wrap:wrap; margin-top:6px; }
+  .demo button { background:#3a3833; color:#fff; border:1px solid #57544c; border-radius:6px; padding:4px 7px; cursor:pointer; font-size:13px; }
+  .demo button.on { background:#ffd8a8; color:#1d1b17; border-color:#ffd8a8; font-weight:700; }
+  .demo .x { float:right; background:none; border:0; color:#aaa; font-size:16px; padding:0 4px; }
+
+  @media (max-width: 820px) {
+    body { font-size:16.5px; }
+    .purpose, .mock-grid, .twocol { grid-template-columns:1fr; }
+    .card { padding:18px 16px; }
+    .card h2 { font-size:22px; }
+    .seg .lbl .t { display:none; }
+    .seg.current .lbl .t { display:inline; }
+    .demo { width:auto; left:12px; }
   }
-  label.field { display:block; font-size:13px; font-weight:600; margin-top:12px; }
-  .hint { font-size:12px; color:var(--muted); margin-top:3px; }
-  .tip { background:#eef5fb; border-left:3px solid #4a90d9; padding:8px 12px; border-radius:0 6px 6px 0; margin:8px 0; font-size:12.5px; line-height:1.7; }
-  .warnbox { background:var(--warn-soft); border-left:3px solid var(--warn); padding:8px 12px; border-radius:0 6px 6px 0; margin:8px 0; font-size:12.5px; line-height:1.7; }
-  .progressbar { display:flex; gap:6px; margin:16px 0 4px; }
-  .dot { flex:1; height:5px; border-radius:3px; background:#e5e3dd; }
-  .dot.done { background:var(--ok); }
-  .dot.current { background:var(--accent); }
-  footer { text-align:center; color:var(--muted); font-size:12px; padding:20px; }
-  .env-badge { font-size:11px; color:var(--muted); }
 </style>
 </head>
 <body>
-<header>
-  <h1>🪄 Claude Code 설치 마법사</h1>
-  <p>터미널 명령어를 몰라도 괜찮습니다. 이미 설치된 항목은 자동으로 건너뛰고, 필요한 것만 순서대로 안내해드립니다.
-  마지막엔 실제로 동작하는 "이메일 섹터 리포트" 자동화까지 완성됩니다.</p>
-  <details>
-    <summary>❓ "터미널"이 뭔가요? (컴퓨터가 처음이면 먼저 읽어보세요)</summary>
-    <div class="guide">
-      터미널은 마우스로 클릭하는 대신 <b>글자를 입력해서 컴퓨터에게 직접 명령을 내리는 검은 화면</b>이에요.
-      아래 단계들을 진행하다 보면 "터미널 열기"라는 버튼이 여러 번 나오는데, 그 버튼을 누르면 이 마법사가
-      알맞은 위치에 알아서 열어드리니 <b>직접 찾아서 켤 필요는 없어요</b>.
-      <div class="hint" style="margin-top:6px;">
-        그래도 궁금하시다면: Windows에서는 키보드의 <code>윈도우 키</code>를 누르고 <code>cmd</code>라고 입력한 뒤 Enter를 누르면
-        "명령 프롬프트"라는 검은 창이 뜹니다 — 이게 터미널이에요. 처음 보면 아무것도 없는 새까만 화면이라 낯설 수 있지만,
-        이 마법사가 시키는 대로 문장만 그대로 입력하시면 되니 걱정 안 하셔도 됩니다.
-      </div>
-      <div class="warnbox" style="margin-top:8px;">
-        ⚠️ <b>주의:</b> 이렇게 직접 연 터미널에 아직 아무것도 설치하지 않은 상태에서 바로 <code>claude</code>라고 쳐보면
-        <code>'claude'은(는) 내부 또는 외부 명령... 이(가) 아닙니다</code>라는 에러가 뜹니다 — 이건 컴퓨터가 고장난 게 아니라
-        <b>아직 1단계 "Claude Code 설치"를 안 해서</b> 나는 정상적인 메시지예요. 아래 1단계의 "자동 설치" 버튼을 먼저 눌러서
-        설치를 마친 뒤에 <code>claude</code>를 입력해야 동작합니다.
-      </div>
+<div class="top">
+  <div class="wrap">
+    <div class="brand">
+      <h1>Claude Code 설치 마법사</h1>
+      <div class="live" id="live"><span class="pulse"></span><span id="live-text">연결 중…</span></div>
     </div>
-  </details>
-  <div class="progressbar" id="progressbar"></div>
-</header>
-<main id="steps"></main>
-<footer>로컬 컴퓨터에서만 실행되는 도구입니다(Node.js 기반). 입력한 정보는 이 컴퓨터의 agent/.env 파일에만 저장됩니다.</footer>
+    <nav class="progress" id="progress" aria-label="진행 단계"></nav>
+    <div class="where" id="where"></div>
+  </div>
+</div>
+<main class="wrap">
+  <div id="banners"></div>
+  <div id="view"></div>
+</main>
+<div id="demo"></div>
+<div id="toast" class="toast" hidden></div>
 
 <script>
-const STATE = { check: null, loginChecked: false, config: null };
+'use strict';
+// ===========================================================================
+// 기본 설정
+// ===========================================================================
+const PARAMS = new URLSearchParams(location.search);
+const DEMO = PARAMS.get('demo') === '1';
+const POLL_MS = 5000;
 
-function badge(text, cls) { return `<span class="badge ${cls}">${text}</span>`; }
+const STEPS = [
+  { id: 'start', short: '시작', title: '시작하기' },
+  { id: 'install', n: 1, short: '설치', title: 'Claude Code 설치' },
+  { id: 'login', n: 2, short: '로그인', title: 'Claude Code 로그인' },
+  { id: 'gmail', n: 3, short: 'Gmail', title: 'Gmail 앱 비밀번호' },
+  { id: 'agent', n: 4, short: '자동화 만들기', title: '첫 자동화 만들기' },
+  { id: 'schedule', n: 5, short: '매일 예약', title: '매일 자동 실행 예약' },
+  { id: 'finish', short: '완료', title: '완료' },
+];
+const WORK = ['install', 'login', 'gmail', 'agent', 'schedule'];
+const STATE_LABEL = { todo: '아직 안 함', doing: '진행 중', done: '완료', error: '문제 있음' };
 
-async function api(path, opts) {
-  const res = await fetch(path, opts || {});
+const S = {
+  view: 'start',
+  status: null,
+  serverDown: false,
+  lastCheck: 0,
+  prev: null,
+  autoTimer: null,
+  autoNext: null,
+  ui: { opened: {}, pending: {}, results: {}, stuck: {}, open: {} },
+  form: { gmail_sender: '', gmail_app_password: '', recipient: '', krx_key: '', hour: 7, minute: 0 },
+  formLoaded: false,
+  checklist: loadLocal('checklist', { win: false, net: false, sub: false, gmail: false }),
+  demo: { states: { install: 'todo', login: 'todo', gmail: 'todo', agent: 'todo', schedule: 'todo' }, hidden: false },
+};
+
+function loadLocal(key, fallback) {
+  try { const v = JSON.parse(localStorage.getItem('wizard.' + key)); return v && typeof v === 'object' ? Object.assign({}, fallback, v) : fallback; } catch (e) { return fallback; }
+}
+function saveLocal(key, value) { try { localStorage.setItem('wizard.' + key, JSON.stringify(value)); } catch (e) { /* 저장 불가해도 동작에는 지장 없음 */ } }
+
+function esc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+// ===========================================================================
+// Claude Code에게 붙여넣을 요청 문장 (파일 이름은 server.js의 AGENTS와 같아야 함)
+// ===========================================================================
+const PROMPT_BASIC = `매일 아침 원/달러 환율과 코스피 지수를 요약해서 나에게 이메일로 보내주는 프로그램을 만들어줘.
+
+꼭 지켜줘:
+1. 파일은 agent 폴더 안에 만들고, 실행 파일 이름은 agent/daily_market_agent.js 로 해줘. (Node.js 사용)
+2. 인증키(API 키)가 필요 없는 공개 데이터만 써줘. 원/달러 환율, 코스피 지수와 전날 대비 등락률을 넣어줘.
+3. 메일 정보는 agent/.env 에서 읽어줘. 변수 이름은 GMAIL_SENDER, GMAIL_APP_PASSWORD, REPORT_RECIPIENT 야.
+   .env 는 이미 만들어져 있으니 그 파일을 열어보거나 내용을 화면에 출력하지 마. 파일 위치는 스크립트 파일 위치(__dirname) 기준으로 찾아줘.
+4. 메일은 Gmail(smtp.gmail.com, 465번 포트)로 보내줘. 필요한 패키지는 agent 폴더 안에만 설치해줘(nodemailer 정도만).
+5. 실행할 때마다 결과(시각, 성공/실패)를 agent/last_run.log 에 한 줄씩 남겨줘. 비밀번호는 어디에도 출력하거나 기록하지 마.
+6. 다 만들면 한 번 실행해서 나에게 테스트 메일 1통을 보내줘. 오류가 나면 스스로 고쳐서 다시 시도해줘.
+7. 나는 프로그래밍을 몰라. 진행 상황은 쉬운 한국어로 짧게 알려줘.`;
+
+const PROMPT_ADVANCED = `한국거래소(KRX) 데이터로 업종(섹터)별 등락률을 정리해서 매일 이메일로 보내주는 프로그램을 만들어줘.
+
+꼭 지켜줘:
+1. 실행 파일 이름은 agent/sector_report_agent.js 로 해줘. (Node.js 사용, agent 폴더 안에만 만들기)
+2. KRX API 키는 agent/.env 의 KRX_AUTH_KEY 에서 읽어줘. 메일 정보는 GMAIL_SENDER, GMAIL_APP_PASSWORD, REPORT_RECIPIENT 야.
+   .env 파일을 열어보거나 내용을 출력하지 말고, 위치는 스크립트 파일 위치(__dirname) 기준으로 찾아줘.
+3. 오른 업종은 빨간색, 내린 업종은 파란색인 보기 좋은 표로 만들어줘.
+4. 실행할 때마다 결과를 agent/last_run.log 에 한 줄씩 남기고, 비밀번호와 키는 어디에도 출력하지 마.
+5. 다 만들면 한 번 실행해서 나에게 테스트 메일 1통을 보내줘. 진행 상황은 쉬운 한국어로 짧게 알려줘.`;
+
+const PROMPT_RENAME = `방금 만든 프로그램의 실행 파일 이름을 agent/daily_market_agent.js 로 바꿔줘. 다른 내용은 그대로 두고, 바꾼 다음 한 번 실행해서 테스트 메일 1통을 보내줘.`;
+
+function fixPrompt(raw, file) {
+  return `${file || 'agent/daily_market_agent.js'} 를 실행했더니 아래 오류가 났어. 무엇이 문제였는지 쉬운 한국어로 짧게 설명하고, 고친 다음 다시 실행해서 테스트 메일 1통을 보내줘. agent/.env 파일은 열어보지 마.
+
+[오류 내용]
+${raw || '(내용 없음)'}`;
+}
+
+// ===========================================================================
+// 서버와 통신
+// ===========================================================================
+async function api(path, body) {
+  if (DEMO) return demoApi(path, body);
+  const opts = body === undefined ? {} : { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Wizard': '1' }, body: JSON.stringify(body) };
+  const res = await fetch(path, opts);
   return res.json();
 }
 
-function showLog(id, text) {
-  const el = document.getElementById(id);
-  el.style.display = 'block';
-  el.textContent = text;
+let polling = null;
+async function refresh() {
+  if (DEMO) { S.status = demoStatus(); S.lastCheck = Date.now(); afterStatus(); return; }
+  try {
+    S.status = await api('/api/status');
+    S.serverDown = false;
+  } catch (e) {
+    S.serverDown = true;
+  }
+  S.lastCheck = Date.now();
+  afterStatus();
 }
 
-async function refreshCheck() {
-  STATE.check = await api('/api/check');
-  STATE.config = await api('/api/load-config');
+function schedulePoll() {
+  clearTimeout(polling);
+  const running = S.status && Object.values(S.status.jobs || {}).some((j) => j.state === 'running');
+  const anyPending = Object.values(S.ui.pending).some(Boolean);
+  polling = setTimeout(async () => { await refresh(); schedulePoll(); }, (running || anyPending) ? 1500 : POLL_MS);
+}
+
+// ===========================================================================
+// 단계 상태 계산: todo(아직) / doing(진행 중) / done(완료) / error(문제)
+// ===========================================================================
+function job(name) { return (S.status && S.status.jobs && S.status.jobs[name]) || null; }
+
+function computeStates() {
+  const st = S.status;
+  const out = { install: 'todo', login: 'todo', gmail: 'todo', agent: 'todo', schedule: 'todo' };
+  if (!st) return out;
+  const j = (n) => job(n) || {};
+  // 1 설치
+  if (j('install').state === 'running') out.install = 'doing';
+  else if (st.claude.installed) out.install = 'done';
+  else if (j('install').state === 'error') out.install = 'error';
+  // 2 로그인
+  if (st.login.logged_in) out.login = 'done';
+  else if (j('login-verify').state === 'running') out.login = 'doing';
+  else if (j('login-verify').state === 'error') out.login = 'error';
+  else if (S.ui.opened.login) out.login = 'doing';
+  // 3 Gmail
+  const saved = st.config.has_gmail_password && !!st.config.gmail_sender;
+  if (j('smtp-check').state === 'running' || S.ui.pending.save) out.gmail = 'doing';
+  else if (j('smtp-check').state === 'error' || (S.ui.results.save && !S.ui.results.save.ok)) out.gmail = 'error';
+  else if (saved) out.gmail = 'done';
+  // 4 자동화
+  const exists = st.agents.basic.exists;
+  if (j('run-basic').state === 'running') out.agent = 'doing';
+  else if (exists && j('run-basic').state === 'error') out.agent = 'error';
+  else if (exists) out.agent = 'done';
+  else if (S.ui.opened.agent) out.agent = 'doing';
+  // 5 예약
+  const sr = S.ui.results.schedule;
+  if (S.ui.pending.schedule) out.schedule = 'doing';
+  else if (sr && !sr.ok) out.schedule = 'error';
+  else if (st.schedule.basic.registered) out.schedule = 'done';
+  return out;
+}
+
+function unlocked(viewId, states) {
+  if (viewId === 'start') return true;
+  if (DEMO) return true;
+  if (viewId === 'finish') return WORK.every((w) => states[w] === 'done');
+  const idx = WORK.indexOf(viewId);
+  return WORK.slice(0, idx).every((w) => states[w] === 'done' || (w === 'gmail' && states[w] === 'error' && S.status && S.status.config.has_gmail_password));
+}
+
+function firstOpenStep(states) {
+  return WORK.find((w) => states[w] !== 'done') || 'finish';
+}
+
+function afterStatus() {
+  const states = computeStates();
+  // 지금 보고 있는 단계가 방금 완료되면 → 초록 체크 + 잠시 뒤 다음 단계로 자동 이동
+  if (S.prev && !DEMO && WORK.includes(S.view) && S.prev[S.view] !== 'done' && states[S.view] === 'done') {
+    const idx = STEPS.findIndex((s) => s.id === S.view);
+    const next = STEPS[idx + 1].id;
+    S.autoNext = { from: S.view, to: next, at: Date.now() + 3500 };
+    clearTimeout(S.autoTimer);
+    S.autoTimer = setTimeout(() => { if (S.autoNext && S.view === S.autoNext.from) go(S.autoNext.to); S.autoNext = null; render(); }, 3500);
+  }
+  S.prev = states;
+  if (S.status && !S.formLoaded) {
+    S.form.gmail_sender = S.status.config.gmail_sender;
+    S.form.recipient = S.status.config.recipient === S.status.config.gmail_sender ? '' : S.status.config.recipient;
+    if (S.status.schedule.basic.registered && S.status.schedule.basic.hour !== undefined) {
+      S.form.hour = S.status.schedule.basic.hour; S.form.minute = S.status.schedule.basic.minute;
+    }
+    S.formLoaded = true;
+  }
   render();
 }
 
+// ===========================================================================
+// 화면 그리기
+// ===========================================================================
+let lastHtml = '';
 function render() {
-  const c = STATE.check;
-  if (!c) return;
-  const steps = document.getElementById('steps');
-  const claudeDone = c.claude_cli.installed;
-  const loginDone = STATE.loginChecked === true;
-  const agentDone = c.agent_exists;
-  const configDone = c.env_configured;
+  const states = computeStates();
+  renderTop(states);
+  renderBanners();
+  const html = renderView(S.view, states);
+  if (html !== lastHtml) {
+    const focus = captureFocus();
+    document.getElementById('view').innerHTML = html;
+    lastHtml = html;
+    restoreFocus(focus);
+  }
+  renderDemo();
+}
 
-  const dots = [claudeDone, loginDone, configDone, agentDone, false];
-  document.getElementById('progressbar').innerHTML = dots.map((d,i) =>
-    `<div class="dot ${d ? 'done' : (i===dots.findIndex(x=>!x) ? 'current' : '')}"></div>`).join('');
+function renderTop(states) {
+  const items = STEPS.slice(1).map((s) => {
+    const stt = s.id === 'finish' ? (WORK.every((w) => states[w] === 'done') ? 'done' : 'todo') : states[s.id];
+    const can = unlocked(s.id, states);
+    const cur = S.view === s.id;
+    const num = stt === 'done' ? '✓' : stt === 'error' ? '!' : (s.n || '★');
+    return `<button class="seg ${stt} ${cur ? 'current' : ''}" data-action="go" data-view="${s.id}" ${can ? '' : 'disabled'} aria-current="${cur ? 'step' : 'false'}" title="${esc(s.title)} · ${STATE_LABEL[stt]}">
+      <div class="bar"></div><div class="lbl"><span class="n">${num}</span><span class="t">${esc(s.short)}</span></div></button>`;
+  }).join('');
+  const prog = document.getElementById('progress');
+  if (prog.innerHTML !== items) prog.innerHTML = items;
+  const step = STEPS.find((s) => s.id === S.view);
+  const doneCount = WORK.filter((w) => states[w] === 'done').length;
+  let where;
+  if (S.view === 'start') where = `시작 화면 · 준비물을 확인해주세요 <span class="muted">(완료 ${doneCount}/5)</span>`;
+  else if (S.view === 'finish') where = `<b>모든 단계 완료</b> · 수고하셨어요!`;
+  else where = `지금 <b>${step.n}단계 / 전체 5단계</b> · ${esc(step.title)} <span class="muted">(완료 ${doneCount}/5)</span>`;
+  document.getElementById('where').innerHTML = where;
+  const live = document.getElementById('live');
+  live.classList.toggle('down', S.serverDown);
+  document.getElementById('live-text').textContent = DEMO ? '데모 모드 (서버 없이 화면만 보기)'
+    : S.serverDown ? '마법사 서버와 연결이 끊김'
+    : S.lastCheck ? `5초마다 자동 확인 중 · ${new Date(S.lastCheck).toLocaleTimeString('ko-KR')}` : '연결 중…';
+}
 
-  steps.innerHTML = `
+function renderBanners() {
+  let html = '';
+  if (S.serverDown) {
+    html += `<div class="banner err"><div><b>마법사의 검은 창이 닫힌 것 같아요.</b><br>
+      <span class="small">start.bat을 다시 더블클릭하면 이어서 진행할 수 있어요. 지금까지 한 작업은 그대로 남아 있어요.</span></div>
+      <button class="btn small plain" data-action="refresh">다시 연결</button></div>`;
+  }
+  if (S.status && !S.status.node.ok) {
+    html += `<div class="banner err"><div><b>Node.js 버전이 너무 낮아요 (${esc(S.status.node.version)}).</b><br>
+      <span class="small">Claude Code는 Node.js ${S.status.node.min} 이상이 필요해요. <a href="https://nodejs.org" target="_blank" rel="noopener">nodejs.org</a>에서 LTS 버전을 설치한 뒤 start.bat을 다시 실행해주세요.</span></div></div>`;
+  }
+  const el = document.getElementById('banners');
+  if (el.innerHTML !== html) el.innerHTML = html;
+}
 
-  <div class="env-badge">✅ Node.js ${c.node.version || ''} 로 이 마법사가 실행 중입니다.</div>
+function pill(state) { return `<span class="pill ${state}">${state === 'done' ? '✓ ' : ''}${STATE_LABEL[state]}</span>`; }
 
-  <div class="step ${claudeDone ? 'done' : ''}" style="margin-top:10px">
-    <div class="step-head">
-      <div class="step-title">1️⃣ Claude Code 설치</div>
-      ${claudeDone ? badge('설치됨 ' + (c.claude_cli.version||''), 'ok') : badge('필요', 'need')}
-    </div>
-    <div class="step-desc">Claude Code 프로그램 자체를 설치합니다.</div>
-    ${!claudeDone ? `
-    <div class="row"><button class="btn" onclick="installClaude()">자동 설치</button></div>` : ''}
-    <div class="log" id="log-claude"></div>
-    <details><summary>자세히 보기</summary>
-      <div class="guide">
-        <code>npm install -g @anthropic-ai/claude-code</code> 명령 하나로 설치됩니다.
-        이 버튼이 그 명령을 대신 실행해드립니다. 1~2분 정도 걸릴 수 있습니다.
-      </div>
-    </details>
-  </div>
+function head(id, state, what, why) {
+  const s = STEPS.find((x) => x.id === id);
+  return `<div class="kicker">${s.n}단계 / 5</div>
+    <h2>${esc(s.title)} ${pill(state)}</h2>
+    <div class="purpose"><div><b>이 단계에서 하는 일</b>${what}</div><div><b>왜 필요한가요?</b>${why}</div></div>`;
+}
 
-  <div class="step ${loginDone ? 'done' : ''}">
-    <div class="step-head">
-      <div class="step-title">2️⃣ Claude Code 로그인</div>
-      ${loginDone ? badge('로그인됨', 'ok') : (claudeDone ? badge('필요', 'need') : badge('1단계 먼저', 'wait'))}
-    </div>
-    <div class="step-desc">이 단계는 브라우저 인증이 필요해서, 실제 터미널 창을 하나 열어드립니다. 무섭지 않아요 — 딱 한 줄만 입력하면 됩니다.</div>
-    ${claudeDone ? `
-    <div class="row">
-      <button class="btn" onclick="openTerminal('log-login')">터미널 열기</button>
-      <button class="btn secondary" onclick="checkLogin()">로그인 완료했어요 (확인)</button>
+function stateBox(kind, icon, html) {
+  const ico = kind === 'doing' ? '<span class="spinner" aria-hidden="true"></span>' : `<span class="ico" aria-hidden="true">${icon}</span>`;
+  return `<div class="state ${kind}" role="status">${ico}<div>${html}</div></div>`;
+}
+
+function elapsed(started) {
+  if (!started) return '';
+  const sec = Math.max(0, Math.round((Date.now() - started) / 1000));
+  return `<span class="muted small" data-elapsed="${started}">(${Math.floor(sec / 60)}분 ${sec % 60}초 지남)</span>`;
+}
+
+function errorBox(err, raw, opts = {}) {
+  if (!err) return '';
+  const fix = opts.fix ? `<button class="btn small" data-action="copy" data-copy="${esc(opts.fix)}" data-msg="복사됐어요! Claude Code 창을 한 번 클릭하고 Ctrl+V → Enter를 누르세요.">📋 고쳐달라고 요청 복사</button>` : '';
+  const retry = opts.retry ? `<button class="btn small secondary" data-action="${opts.retry}">↻ 다시 시도</button>` : '';
+  return `<div class="errbox" role="alert">
+    <div class="t">⚠️ ${esc(err.title)}</div>
+    <div class="lab">무슨 일인가요?</div><div>${esc(err.what)}</div>
+    <div class="lab">지금 할 일</div><ol>${(err.todo || []).map((t) => `<li>${esc(t)}</li>`).join('')}</ol>
+    ${fix || retry ? `<div class="row">${fix}${retry}</div>` : ''}
+    ${raw ? `<details data-key="raw-${esc(opts.key || '')}"${S.ui.open['raw-' + (opts.key || '')] ? ' open' : ''}><summary>자세히 보기 (컴퓨터가 보낸 원래 메시지)</summary><pre class="raw">${esc(raw)}</pre>
+      <button class="btn small plain" data-action="copy" data-copy="${esc(raw)}">원문 복사</button></details>` : ''}
+  </div>`;
+}
+
+function jobError(name, opts) {
+  const j = job(name);
+  if (!j || j.state !== 'error') return '';
+  return errorBox(j.error, j.raw, Object.assign({ key: name }, opts || {}));
+}
+
+function stuck(id, items) {
+  const open = !!S.ui.stuck[id];
+  return `<div class="stuck">
+    <button class="btn plain" data-action="stuck" data-step="${id}" aria-expanded="${open}">🙋 막혔어요${open ? ' (닫기)' : ''}</button>
+    ${open ? `<div class="stuck-panel"><p class="small muted">이 단계에서 자주 생기는 문제예요. 해당하는 것을 눌러보세요.</p>
+      ${items.map((it, i) => `<details data-key="stuck-${id}-${i}"${S.ui.open[`stuck-${id}-${i}`] ? ' open' : ''}><summary>${esc(it.q)}</summary><div class="ans">${it.a}</div></details>`).join('')}
     </div>` : ''}
-    <div class="log" id="log-login"></div>
-    <details open><summary>자세히 보기 (꼭 읽어주세요)</summary>
-      <div class="guide">
-        <ol>
-          <li>"터미널 열기" 버튼을 누르면 검은 화면(터미널)이 하나 뜹니다.</li>
-          <li>그 창에 <code>claude</code> 라고 입력하고 Enter를 누르세요.</li>
-          <li>Claude Code 계정이 없다면, <a href="https://claude.ai/code" target="_blank" rel="noopener">claude.ai/code</a> 에서 먼저 가입/구독해주세요. 이미 있다면 브라우저 창이 자동으로 열리며 로그인 화면이 나옵니다.</li>
-          <li>로그인이 끝나면 터미널로 자동으로 돌아옵니다 — 그 창은 그냥 닫으셔도 됩니다.</li>
-          <li>다시 이 화면으로 와서 "로그인 완료했어요" 버튼을 눌러주세요.</li>
-        </ol>
-        이 과정을 한 번 해보시면, 앞으로 Claude Code 터미널이 훨씬 덜 낯설게 느껴지실 거예요.
-      </div>
-    </details>
-  </div>
+  </div>`;
+}
 
-  <div class="step ${configDone ? 'done' : ''}">
-    <div class="step-head">
-      <div class="step-title">3️⃣ 이메일·API 키 입력</div>
-      ${configDone ? badge('설정됨', 'ok') : (loginDone ? badge('필요', 'need') : badge('2단계 먼저', 'wait'))}
-    </div>
-    <div class="step-desc">곧 만들 에이전트가 이메일을 보낼 때 쓸 Gmail 정보를 미리 입력해둡니다. 필요한 정보를 먼저 준비해두면, 다음 단계에서 에이전트를 만들자마자 바로 테스트 발송까지 이어서 할 수 있어요.</div>
-    ${loginDone ? `
-    <div id="config-form">
-      <label class="field">보낼 Gmail 주소 (발신)</label>
-      <input type="email" id="f-gmail" placeholder="you@gmail.com" value="${(STATE.config && STATE.config.gmail_sender) || ''}">
-      <label class="field">Gmail 앱 비밀번호</label>
-      <input type="password" id="f-pw" placeholder="${STATE.config && STATE.config.has_gmail_password ? '이미 저장되어 있습니다 (바꾸려면 새로 입력)' : '16자리'}">
-      <div class="hint">일반 로그인 비밀번호가 아닙니다 — 아래 "자세히 보기"에서 발급 방법을 확인하세요. 비워두면 기존에 저장된 값이 유지됩니다.</div>
-      <label class="field">받는 이메일 주소 (수신, 비워두면 발신 주소와 동일)</label>
-      <input type="email" id="f-recipient" placeholder="you@gmail.com" value="${(STATE.config && STATE.config.recipient) || ''}">
-      <label class="field">KRX(한국거래소) API 키 <span style="font-weight:400;color:var(--muted)">— 선택, 심화학습 ①에서 사용</span></label>
-      <input type="password" id="f-krx" placeholder="${STATE.config && STATE.config.has_krx_key ? '이미 저장되어 있습니다 (바꾸려면 새로 입력)' : '지금 없으면 비워두세요'}">
-      <div class="hint"><a href="https://data-dbg.krx.co.kr" target="_blank" rel="noopener">data-dbg.krx.co.kr</a> 에서 무료 발급받을 수 있습니다. 나중에 심화학습 단계에서 써도 됩니다.</div>
-      <div class="row"><button class="btn" onclick="saveConfig()">저장</button></div>
-    </div>` : ''}
-    <div class="log" id="log-config"></div>
-    <details open><summary>📋 Gmail 앱 비밀번호 발급 방법 (처음이면 꼭 읽어보세요)</summary>
-      <div class="guide">
-        <ol>
-          <li>
-            먼저 구글 계정에 <b>2단계 인증</b>이 켜져 있어야 앱 비밀번호를 만들 수 있어요.
-            <a href="https://myaccount.google.com/security" target="_blank" rel="noopener">여기를 눌러 보안 설정으로 이동</a>한 뒤
-            "2단계 인증"이 꺼져 있으면 켜주세요 (휴대폰 문자로 인증하는 방식이 가장 간단합니다).
-          </li>
-          <li>
-            2단계 인증이 이미 켜져 있다면
-            <a href="https://myaccount.google.com/apppasswords" target="_blank" rel="noopener">여기를 눌러 앱 비밀번호 발급 페이지로 이동</a>하세요.
-            (구글 로그인을 다시 요구할 수 있어요 — 평소 쓰는 본인 비밀번호로 로그인하면 됩니다.)
-          </li>
-          <li>"앱 이름" 칸에 아무 이름이나 입력하세요 (예: <code>섹터리포트</code>). 그리고 "만들기" 버튼을 누르세요.</li>
-          <li>노란 배경에 <b>16자리 코드</b>(예: <code>abcd efgh ijkl mnop</code>)가 나타납니다. 이 코드를 그대로 복사하세요 (띄어쓰기는 있어도 없어도 상관없습니다).</li>
-          <li>
-            이 창으로 돌아와서 <b>바로 위 "Gmail 앱 비밀번호" 입력칸</b>에 방금 복사한 16자리 코드를 붙여넣으세요.
-            <u>구글 로그인할 때 쓰는 원래 비밀번호가 아닙니다</u> — 반드시 방금 새로 발급받은 16자리 코드를 넣어야 합니다.
-          </li>
-        </ol>
-        <div class="hint" style="margin-top:8px;">"앱 비밀번호" 메뉴 자체가 안 보이거나 회색으로 막혀 있나요? 2단계 인증이 아직 꺼져 있어서 그럴 가능성이 높습니다 — 1번부터 다시 확인해보세요.</div>
-      </div>
-    </details>
+function nav(id, states) {
+  const idx = STEPS.findIndex((s) => s.id === id);
+  const prev = STEPS[idx - 1];
+  const next = STEPS[idx + 1];
+  const canNext = next && unlocked(next.id, states);
+  let auto = '';
+  if (S.autoNext && S.autoNext.from === id) auto = `<span class="small" style="color:var(--ok);font-weight:700">✓ 완료! 잠시 뒤 다음 단계로 넘어가요</span>`;
+  return `<div class="nav">
+    ${prev ? `<button class="btn plain" data-action="go" data-view="${prev.id}">← 이전</button>` : '<span></span>'}
+    ${auto}
+    ${next ? `<button class="btn ${canNext ? 'ok' : ''}" data-action="go" data-view="${next.id}" ${canNext ? '' : 'disabled'}>${next.id === 'finish' ? '완료 화면으로' : '다음 단계'} →</button>` : ''}
   </div>
+  ${next && !canNext ? `<p class="small muted" style="text-align:right">이 단계가 완료되면 [다음 단계] 버튼이 열려요. 화면이 5초마다 자동으로 확인해요.</p>` : ''}`;
+}
 
-  <div class="step ${agentDone ? 'done' : ''}">
-    <div class="step-head">
-      <div class="step-title">4️⃣ 에이전트 만들기 (실습) — 섹터 리포트 이메일</div>
-      ${agentDone ? badge('만들어짐', 'ok') : (configDone ? badge('필요', 'need') : badge('3단계 먼저', 'wait'))}
+function copyBlock(text, label, msg) {
+  return `<div class="prompt" tabindex="0">${esc(text)}</div>
+    <div class="row"><button class="btn" data-action="copy" data-copy="${esc(text)}" data-msg="${esc(msg || '복사됐어요! 붙여넣을 곳을 클릭하고 Ctrl+V를 누르세요.')}">📋 ${esc(label || '복사')}</button>
+    <span class="small muted">붙여넣기는 <span class="kbd">Ctrl</span> + <span class="kbd">V</span></span></div>`;
+}
+
+function renderView(id, states) {
+  switch (id) {
+    case 'start': return viewStart(states);
+    case 'install': return viewInstall(states);
+    case 'login': return viewLogin(states);
+    case 'gmail': return viewGmail(states);
+    case 'agent': return viewAgent(states);
+    case 'schedule': return viewSchedule(states);
+    case 'finish': return viewFinish(states);
+  }
+  return '';
+}
+
+// ---------------------------------------------------------------------------
+// 시작 화면
+// ---------------------------------------------------------------------------
+function viewStart(states) {
+  const c = S.checklist;
+  const all = c.win && c.net && c.sub && c.gmail;
+  const items = [
+    ['win', 'Windows 10 또는 11 컴퓨터', '화면 왼쪽 아래 시작 버튼이 있는 일반 PC면 대부분 해당돼요.'],
+    ['net', '인터넷 연결', '설치하는 동안 인터넷이 필요해요. 회사 PC는 보안 때문에 막힐 수 있어요.'],
+    ['sub', 'Claude 유료 구독 계정 (Pro 또는 Max)', '무료 계정으로는 Claude Code를 쓸 수 없어요. <a href="https://claude.com/pricing" target="_blank" rel="noopener">요금제 보기</a>'],
+    ['gmail', 'Gmail 계정 + 문자 받을 휴대폰', '메일을 보낼 때 쓰는 계정이에요. 2단계 인증(휴대폰 문자) 설정에 휴대폰이 필요해요.'],
+  ];
+  const started = WORK.some((w) => states[w] === 'done');
+  return `<section class="card">
+    <div class="kicker">시작하기</div>
+    <h2>설치부터 첫 자동화까지, 혼자서도 끝낼 수 있어요</h2>
+    <p><b>이 마법사로 할 수 있는 것</b></p>
+    <ul class="can-do">
+      <li><span class="b">🧰</span><b>Claude Code</b>(말로 부탁하면 프로그램을 만들어주는 AI 도우미)를 내 PC에 설치하고 로그인해요.</li>
+      <li><span class="b">✉️</span>Claude Code에게 부탁해서 <b>"매일 아침 환율·코스피 요약 메일"</b> 프로그램을 만들어요.</li>
+      <li><span class="b">⏰</span>매일 정해진 시각에 <b>저절로 메일이 오도록</b> 예약해요.</li>
+    </ul>
+    <div class="facts">
+      <div class="fact">⏱️ 예상 시간 <b>약 30~40분</b></div>
+      <div class="fact">⌨️ 명령어 입력 <b>없음</b> — 버튼과 복사·붙여넣기만</div>
+      <div class="fact">🔒 비밀번호는 <b>이 PC에만</b> 저장</div>
     </div>
-    <div class="step-desc">이제 Claude Code한테 직접 시켜서, 매일 한국 섹터 등락률을 요약해 이메일로 보내는 프로그램을 만들어봅니다. 이게 Claude Code의 진짜 핵심 기능이에요.</div>
-    ${configDone ? `
+    <h3>준비물 확인 <span class="small muted">(모두 체크해야 시작할 수 있어요)</span></h3>
+    <ul class="checklist">
+      ${items.map(([k, t, sub]) => `<li><label class="chk ${c[k] ? 'on' : ''}"><input type="checkbox" data-action="check" data-key="${k}" ${c[k] ? 'checked' : ''}>
+        <span><b>${t}</b><br><span class="sub">${sub}</span></span></label></li>`).join('')}
+    </ul>
     <div class="row">
-      <button class="btn" onclick="openTerminal('log-agent')">터미널 열기</button>
-      <button class="btn secondary" onclick="refreshCheck()">만들었어요, 확인하기</button>
-    </div>` : ''}
-    <div class="log" id="log-agent"></div>
-    <details open><summary>자세히 보기 (아래 문장을 그대로 입력하세요)</summary>
-      <div class="guide">
-        <ol>
-          <li>"터미널 열기"를 누르면 검은 화면이 뜹니다. <b>중요:</b> Claude Code는 지금 터미널이 "어느 폴더에 있는지"를 기준으로 파일을 만듭니다 — 그래서 이 버튼이 자동으로 이 프로젝트 폴더 안에서 터미널을 열어드립니다. 창에 폴더 경로가 보이는지 한 번 확인해보세요.</li>
-          <li><code>claude</code> 라고 입력하고 Enter — Claude Code가 시작됩니다.</li>
-          <li>아래 문장을 <b>그대로 복사해서</b> 붙여넣고 Enter를 누르세요:</li>
-        </ol>
-        <div style="background:#1e1e1e;color:#e8e8e8;padding:12px;border-radius:6px;font-family:monospace;font-size:12.5px;margin:8px 0;user-select:all;">
-          나는 미국 섹터 상승률을 매일 아침 이메일로 자동으로 보내는 에이전트를 만들고 싶어.
-          agent 폴더 안에 만들어주고, 이메일 보낼 때 필요한 정보는 .env 파일에서 읽게 해줘.
-        </div>
-        <ol start="4">
-          <li>Claude Code가 실제로 코드를 만드는 과정이 화면에 나타납니다 — 완료될 때까지 기다려주세요(1~2분). 중간에 뭔가 물어보면 편하게 대답하시면 됩니다.</li>
-          <li>
-            터미널 화면 맨 아래에 다시 입력할 수 있는 커서(<code>&gt;</code> 표시)가 나타나고 더 이상 글자가 움직이지 않으면 다 끝난 거예요.
-            그러면 지금 보고 계신 <b>이 브라우저 창(마법사 화면)으로 다시 전환</b>해서, 아래 <b>"만들었어요, 확인하기"</b> 버튼을 눌러주세요 —
-            실제로 파일이 잘 만들어졌는지 자동으로 확인해줍니다. 터미널 창은 그대로 두거나 닫으셔도 됩니다.
-          </li>
-        </ol>
-      </div>
+      <button class="btn" data-action="begin" ${all ? '' : 'disabled'}>${started ? '이어서 하기' : '시작하기'} →</button>
+      ${all ? '' : `<span class="small muted">위 4가지를 모두 체크하면 버튼이 켜져요.</span>`}
+    </div>
+    <details data-key="what-terminal"${S.ui.open['what-terminal'] ? ' open' : ''}><summary>"검은 창(터미널)"이 나온다는데, 무서운 건가요?</summary>
+      <div class="small">아니에요. 터미널은 마우스 대신 <b>글자로 컴퓨터와 대화하는 창</b>이에요. 이 마법사에서는 Claude Code와 대화하는 창으로만 쓰고,
+      명령어를 직접 칠 일은 없어요. 마법사가 버튼으로 알맞은 폴더에서 열어주고, Claude에게 보낼 문장은 [복사] 버튼으로 드려요.
+      검은 창에서는 <span class="kbd">Ctrl</span>+<span class="kbd">V</span>로 붙여넣고 <span class="kbd">Enter</span>만 누르면 돼요.</div>
     </details>
-  </div>
+  </section>`;
+}
 
-  <div class="step">
-    <div class="step-head">
-      <div class="step-title">5️⃣ 예약 발송 설정 + 테스트</div>
-      ${agentDone ? '' : badge('4단계 먼저', 'wait')}
+// ---------------------------------------------------------------------------
+// 1단계: 설치
+// ---------------------------------------------------------------------------
+function viewInstall(states) {
+  const st = S.status;
+  const s = states.install;
+  const j = job('install');
+  let box;
+  if (s === 'done') box = stateBox('done', '✅', `<b>Claude Code가 설치되어 있어요</b> <span class="small">(버전 ${esc(st.claude.version)})</span>`);
+  else if (s === 'doing') box = stateBox('doing', '', `<b>설치하고 있어요…</b> ${elapsed(j && j.started)}<br><span class="small">보통 1~3분 걸려요. 이 화면과 검은 창을 닫지 말고 기다려주세요. 끝나면 자동으로 초록 체크가 돼요.</span>`);
+  else if (st && st.claude.found_but_broken) box = stateBox('warn', '⚠️', `<b>Claude Code 파일은 있는데 실행이 안 돼요.</b><br><span class="small">아래 [다시 설치하기]를 눌러보세요.</span>`);
+  else box = stateBox('todo', '⬜', `<b>아직 설치되지 않았어요.</b> 아래 버튼을 한 번만 누르세요.`);
+  return `<section class="card">
+    ${head('install', s, 'Claude Code 프로그램을 이 PC에 설치해요. 버튼 한 번이면 돼요.', 'Claude Code가 있어야 말로 부탁해서 프로그램을 만들 수 있어요. 이후 모든 단계가 이 프로그램을 써요.')}
+    ${st ? stateBox(st.node.ok ? 'done' : 'warn', st.node.ok ? '✅' : '⚠️', `Node.js ${esc(st.node.version)} ${st.node.ok ? '준비됨 (Claude Code를 돌리는 바탕 프로그램)' : `— ${st.node.min} 이상이 필요해요`}`) : ''}
+    ${box}
+    ${s !== 'done' ? `<div class="row">
+      <button class="btn" data-action="job" data-job="install" ${s === 'doing' ? 'disabled' : ''}>${s === 'error' || (st && st.claude.found_but_broken) ? '다시 설치하기' : 'Claude Code 설치하기'}</button>
     </div>
-    <div class="step-desc">매일 자동으로 보내지도록 예약하고, 지금 바로 한 번 테스트 발송해봅니다.</div>
-    ${agentDone ? `
-    <label class="field">매일 몇 시에 보낼까요?</label>
+    <p class="small muted">관리자 권한이 필요 없어요. 공식 배포 프로그램(@anthropic-ai/claude-code)을 내 계정 폴더에만 설치해요.</p>` : ''}
+    ${jobError('install', { retry: 'retry-install' })}
+    ${stuck('install', [
+      { q: '"winget을 찾을 수 없다" / Node.js가 설치되지 않았다고 나와요', a: `<ol><li><a href="https://nodejs.org" target="_blank" rel="noopener">nodejs.org</a>에 들어가 초록색 <b>"LTS"</b> 버튼을 눌러 설치 파일을 받으세요.</li><li>받은 파일을 열고 [Next] → [Next] → [Install] → [Finish]를 누르세요. "이 앱이 변경하도록 허용할까요?"가 나오면 [예] (Node.js는 모든 사용자용으로 설치되기 때문에 묻는 거예요).</li><li>마법사 검은 창을 닫고 start.bat을 다시 더블클릭하세요.</li></ol>` },
+      { q: '설치가 끝났다는데 계속 "아직 안 함"으로 나와요', a: `컴퓨터가 방금 설치된 프로그램을 아직 못 알아본 거예요(Windows의 PATH가 갱신되지 않음).<ol><li>마법사 <b>검은 창을 닫으세요</b>.</li><li>start.bat을 <b>다시 더블클릭</b>하세요.</li><li>그래도 같으면 PC를 다시 시작한 뒤 start.bat을 실행하세요.</li></ol>` },
+      { q: '"인터넷 연결" / "프록시" 오류가 나요 (회사 PC)', a: `회사·학교 네트워크가 프로그램 다운로드를 막고 있을 수 있어요. 집 와이파이나 휴대폰 핫스팟으로 바꿔서 [다시 설치하기]를 눌러보세요. 회사 PC라면 전산 담당자에게 "registry.npmjs.org 접속 허용"을 요청하세요.` },
+      { q: '백신 프로그램이 경고를 띄워요', a: `Claude Code는 Anthropic이 공식 배포하는 프로그램이에요. 백신이 막았다면 [허용]을 누르고 [다시 설치하기]를 눌러주세요. 걱정되면 <a href="https://claude.com/claude-code" target="_blank" rel="noopener">claude.com/claude-code</a> 공식 페이지에서 설치 방법을 확인할 수 있어요.` },
+      { q: '버튼으로 계속 안 돼요 — 다른 방법이 있나요?', a: `<a href="https://claude.com/claude-code" target="_blank" rel="noopener">claude.com/claude-code</a> 공식 페이지의 Windows 설치 안내를 따라 설치해도 돼요. 설치가 끝나면 이 화면이 5초 안에 자동으로 알아차려요(안 되면 start.bat을 다시 실행).` },
+    ])}
+    ${nav('install', states)}
+  </section>`;
+}
+
+// ---------------------------------------------------------------------------
+// 2단계: 로그인
+// ---------------------------------------------------------------------------
+function viewLogin(states) {
+  const st = S.status;
+  const s = states.login;
+  const verifying = job('login-verify') && job('login-verify').state === 'running';
+  let box;
+  if (s === 'done') box = stateBox('done', '✅', `<b>로그인되어 있어요.</b> <span class="small">Claude Code를 쓸 준비가 끝났어요.</span>`);
+  else if (verifying) box = stateBox('doing', '', `<b>Claude에게 실제로 말을 걸어 확인하는 중…</b> ${elapsed(job('login-verify').started)} <span class="small">(최대 1~2분)</span>`);
+  else if (s === 'doing') box = stateBox('doing', '', `<b>검은 창에서 로그인을 진행해주세요.</b><br><span class="small">아래 순서대로 하면 돼요. 로그인이 끝나면 이 화면이 자동으로 알아차려요.</span>`);
+  else box = stateBox('todo', '⬜', `<b>아직 로그인하지 않았어요.</b>`);
+  return `<section class="card">
+    ${head('login', s, 'Claude 계정(유료 구독)으로 Claude Code에 로그인해요.', 'Claude Code는 내 계정의 구독을 써서 동작해요. 로그인은 이 PC에서 처음 한 번만 하면 돼요.')}
+    ${box}
+    ${s !== 'done' ? `<div class="row"><button class="btn" data-action="terminal" data-for="login" ${st && !st.claude.installed && !DEMO ? 'disabled' : ''}>🖥️ 로그인 창 열기</button></div>` : ''}
+    ${job('login-verify') && job('login-verify').state === 'error' ? jobError('login-verify', { retry: 'verify-login' }) : ''}
+    <h3>로그인 순서</h3>
+    <ol class="steps-ol">
+      <li>[로그인 창 열기]를 누르면 검은 창이 뜨고 <b>Claude Code가 저절로 시작돼요</b>. 직접 입력할 명령어는 없어요.</li>
+      <li>글자 색(테마)을 고르는 화면이 나오면 그냥 <span class="kbd">Enter</span>.</li>
+      <li>로그인 방법을 물으면 맨 위 <b>"Claude account with subscription"</b>(구독 계정)이 선택된 상태에서 <span class="kbd">Enter</span>.</li>
+      <li><b>브라우저에 Claude 로그인 화면</b>이 열려요. 평소처럼 로그인하고 <b>[승인(Authorize)]</b>을 누르세요.</li>
+      <li>검은 창에 <b>"Login successful"</b>이 보이면 <span class="kbd">Enter</span>를 몇 번 눌러 안내를 넘기세요. "이 폴더를 믿나요?"라고 물으면 <b>Yes</b>를 고르고 <span class="kbd">Enter</span>.</li>
+      <li>이 화면이 자동으로 확인해서 <b>초록 체크</b>로 바뀌어요. 검은 창은 4단계에서 다시 쓰니 열어두셔도 돼요.</li>
+    </ol>
+    <p class="small muted">예시 화면이에요. Claude Code 버전에 따라 글자가 조금 다를 수 있어요.</p>
+    <div class="mock-grid">
+      <div class="mock-step"><div class="cap"><span class="num">3</span>로그인 방법 고르기</div>
+        <div class="mock"><div class="mock-term">Select login method:
+
+<span class="hl">❯ 1. Claude account with subscription</span>
+  2. Anthropic Console account
+  3. 3rd-party platform</div></div></div>
+      <div class="mock-step"><div class="cap"><span class="num">5</span>로그인 성공 화면</div>
+        <div class="mock"><div class="mock-term">Login successful. Press Enter to continue…
+
+<span class="hl">Do you trust the files in this folder?</span>
+❯ 1. Yes, proceed
+  2. No, exit</div></div></div>
+    </div>
+    ${s !== 'done' ? `<p class="small muted">로그인을 마쳤는데 초록 체크가 안 되나요? <button class="btn small plain" data-action="verify-login" ${verifying ? 'disabled' : ''}>실제로 확인하기</button></p>` : ''}
+    ${stuck('login', [
+      { q: '브라우저 로그인 창이 안 떠요', a: `<ol><li>검은 창에 <b>https://로 시작하는 긴 주소</b>가 보이면, 마우스로 처음부터 끝까지 드래그해서 선택하고 <b>마우스 오른쪽 버튼</b>을 눌러 복사하세요.</li><li>브라우저 주소창에 <span class="kbd">Ctrl</span>+<span class="kbd">V</span>로 붙여넣고 Enter.</li><li>로그인 후 화면에 <b>코드</b>가 나오면 [Copy Code]를 누르고, 검은 창을 클릭해 <span class="kbd">Ctrl</span>+<span class="kbd">V</span> → <span class="kbd">Enter</span>.</li></ol>` },
+      { q: '"\'claude\'은(는) 내부 또는 외부 명령... 이(가) 아닙니다"라고 나와요', a: `설치 직후라 컴퓨터가 아직 Claude Code를 못 알아본 거예요. 마법사 검은 창을 닫고 start.bat을 다시 실행한 뒤 [로그인 창 열기]를 다시 누르세요.` },
+      { q: '"구독이 필요하다" / 로그인이 거절돼요', a: `Claude Code는 <b>Pro 또는 Max 유료 구독</b>이 있어야 쓸 수 있어요. <a href="https://claude.ai" target="_blank" rel="noopener">claude.ai</a>에 로그인해서 구독 상태를 확인하세요. 회사 계정이라면 관리자가 Claude Code 사용을 허용했는지 물어보세요.` },
+      { q: '로그인했는데 이 화면이 계속 "진행 중"이에요', a: `[실제로 확인하기] 버튼을 눌러주세요. Claude에게 짧은 질문을 보내 진짜 로그인됐는지 확인해요(1~2분). 그래도 안 되면 검은 창에서 <code>/login</code>을 입력하고 Enter를 눌러 다시 로그인하세요.` },
+      { q: '검은 창에 한글이 깨지거나 화면이 이상해요', a: `괜찮아요. 화면이 조금 깨져 보여도 동작에는 지장이 없어요. 창 크기를 키우면 대부분 나아져요.` },
+    ])}
+    ${nav('login', states)}
+  </section>`;
+}
+
+// ---------------------------------------------------------------------------
+// 3단계: Gmail 앱 비밀번호
+// ---------------------------------------------------------------------------
+function gmailMockups() {
+  return `<div class="mock-grid">
+    <div class="mock-step"><div class="cap"><span class="num">1</span><span>2단계 인증 켜기 — <a href="https://myaccount.google.com/signinoptions/two-step-verification" target="_blank" rel="noopener">설정 열기</a></span></div>
+      <div class="mock"><div class="mock-bar"><i></i><i></i><i></i><span class="mock-url">myaccount.google.com › 보안</span></div>
+      <div class="mock-body"><div class="mock-h">Google 계정 · 보안</div>
+        <div class="mock-row">비밀번호 <span>●●●●●●</span></div>
+        <div class="mock-row mark">2단계 인증 <span class="mock-toggle"></span><span class="pin" style="right:-10px;top:-12px">1</span></div>
+        <div class="small muted" style="font-size:12.5px">꺼져 있으면 눌러서 켜고, 휴대폰 문자로 인증하세요.</div></div></div></div>
+    <div class="mock-step"><div class="cap"><span class="num">2</span><span>앱 비밀번호 페이지 열기 — <a href="https://myaccount.google.com/apppasswords" target="_blank" rel="noopener">바로 가기</a></span></div>
+      <div class="mock"><div class="mock-bar"><i></i><i></i><i></i><span class="mock-url">myaccount.google.com/apppasswords</span></div>
+      <div class="mock-body"><div class="mock-h">앱 비밀번호</div>
+        <div style="font-size:12.5px;color:#5f6368">앱 이름</div>
+        <div class="mock-input mark">아침메일<span class="pin" style="right:-10px;top:-12px">2</span></div>
+        <span class="mock-btn">만들기</span></div></div></div>
+    <div class="mock-step"><div class="cap"><span class="num">3</span><span>노란 상자의 16자리 코드를 드래그해서 복사</span></div>
+      <div class="mock"><div class="mock-bar"><i></i><i></i><i></i><span class="mock-url">myaccount.google.com/apppasswords</span></div>
+      <div class="mock-body"><div class="mock-h">생성된 앱 비밀번호</div>
+        <div class="mock-yellow mark">abcd efgh ijkl mnop<span class="pin" style="right:-10px;top:-12px">3</span></div>
+        <div style="font-size:12.5px;color:#5f6368;margin-top:6px">이 창을 닫으면 다시 볼 수 없어요. 바로 복사하세요.</div></div></div></div>
+    <div class="mock-step"><div class="cap"><span class="num">4</span><span>이 화면 아래 칸에 <span class="kbd">Ctrl</span>+<span class="kbd">V</span> → [저장하고 확인]</span></div>
+      <div class="mock"><div class="mock-bar"><i></i><i></i><i></i><span class="mock-url">127.0.0.1:5055 (이 마법사)</span></div>
+      <div class="mock-body"><div class="mock-h">Gmail 앱 비밀번호</div>
+        <div class="mock-input mark">●●●● ●●●● ●●●● ●●●●<span class="pin" style="right:-10px;top:-12px">4</span></div>
+        <span class="mock-btn" style="background:#b9532f">저장하고 확인</span></div></div></div>
+  </div>`;
+}
+
+function viewGmail(states) {
+  const st = S.status;
+  const s = states.gmail;
+  const cfg = st ? st.config : {};
+  const f = S.form;
+  const pwLen = f.gmail_app_password.replace(/\s+/g, '').length;
+  const smtpJob = job('smtp-check');
+  const saveRes = S.ui.results.save;
+  let box;
+  if (S.ui.pending.save) box = stateBox('doing', '', '<b>저장하는 중…</b>');
+  else if (smtpJob && smtpJob.state === 'running') box = stateBox('doing', '', `<b>Gmail에 로그인되는지 확인하는 중…</b> ${elapsed(smtpJob.started)}<br><span class="small">메일을 보내지는 않고, 로그인만 해봐요.</span>`);
+  else if (s === 'done' && st.smtp && st.smtp.ok) box = stateBox('done', '✅', `<b>저장됨 + Gmail 로그인 확인 완료!</b> <span class="small">${esc(cfg.gmail_sender)} 에서 보내고, ${esc(cfg.recipient || cfg.gmail_sender)} 로 받아요.</span>`);
+  else if (s === 'done') box = stateBox('done', '✅', `<b>저장되어 있어요.</b> <span class="small">${esc(cfg.gmail_sender)} · [저장하고 확인]을 누르면 Gmail 로그인도 확인해요.</span>`);
+  else if (s === 'error') box = stateBox('warn', '⚠️', '<b>확인이 필요해요.</b> 아래 빨간 상자를 읽어주세요.');
+  else box = stateBox('todo', '⬜', '<b>아직 저장하지 않았어요.</b> 그림 순서대로 앱 비밀번호를 받아 아래 칸에 붙여넣으세요.');
+  const counter = pwLen === 0 ? (cfg.has_gmail_password ? '' : '<div class="counter">띄어쓰기 빼고 16글자예요.</div>')
+    : pwLen === 16 ? '<div class="counter good">✓ 16글자 — 딱 맞아요</div>'
+    : `<div class="counter bad">지금 ${pwLen}글자 — 16글자여야 해요</div>`;
+  return `<section class="card">
+    ${head('gmail', s, '메일을 보낼 Gmail 주소와 "앱 비밀번호"를 저장해요.', '만든 프로그램이 내 Gmail로 메일을 보내려면 허락(앱 비밀번호)이 필요해요. 평소 비밀번호 대신 쓰는 프로그램 전용 비밀번호예요.')}
+    ${box}
+    <h3>앱 비밀번호 받는 법 (그림 순서대로)</h3>
+    <p class="small muted">아래 링크를 누르면 새 탭에서 구글 화면이 열려요. 다 하면 이 탭으로 돌아오세요. (그림은 이해를 돕는 예시라 실제 화면과 조금 다를 수 있어요.)</p>
+    ${gmailMockups()}
+    <h3>여기에 입력하세요</h3>
+    <form data-form="gmail" onsubmit="return false">
+      <label class="field" for="f-sender">보내는 Gmail 주소</label>
+      <input type="email" id="f-sender" data-bind="gmail_sender" value="${esc(f.gmail_sender)}" placeholder="hong@gmail.com" autocomplete="email">
+      <label class="field" for="f-pw">Gmail 앱 비밀번호 (16자리) ${cfg.has_gmail_password ? '<span class="saved-tag">✓ 저장됨</span>' : ''}</label>
+      <input type="password" id="f-pw" data-bind="gmail_app_password" value="${esc(f.gmail_app_password)}" autocomplete="new-password"
+        placeholder="${cfg.has_gmail_password ? '이미 저장됨 — 바꿀 때만 새로 붙여넣기' : 'abcd efgh ijkl mnop'}">
+      ${counter}
+      <div class="field-hint">평소 로그인 비밀번호가 아니에요. 띄어쓰기는 있어도 괜찮아요. 저장한 비밀번호는 화면에 다시 보여주지 않아요.</div>
+      <label class="field" for="f-rcpt">받는 메일 주소 <span class="muted" style="font-weight:400">(비워두면 보내는 주소로 받아요)</span></label>
+      <input type="email" id="f-rcpt" data-bind="recipient" value="${esc(f.recipient)}" placeholder="${esc(f.gmail_sender || 'hong@gmail.com')}" autocomplete="off">
+      <div class="row"><button class="btn" data-action="save-config" ${S.ui.pending.save || (smtpJob && smtpJob.state === 'running') ? 'disabled' : ''}>저장하고 확인</button></div>
+    </form>
+    ${saveRes && !saveRes.ok ? errorBox(saveRes.error, saveRes.raw, { key: 'save' }) : ''}
+    ${jobError('smtp-check', { retry: 'smtp-check' })}
+    <div class="state info"><span class="ico">🔒</span><div class="small">입력한 비밀번호는 <b>이 PC의 agent/.env 파일에만</b> 저장돼요. 인터넷으로 보내거나 화면에 다시 보여주지 않아요(구글에 로그인 확인할 때만 구글로 직접 보내요).</div></div>
+    ${stuck('gmail', [
+      { q: '"앱 비밀번호" 메뉴가 안 보여요 / "사용할 수 없는 설정"이라고 나와요', a: `<ol><li><b>2단계 인증을 먼저 켜야</b> 메뉴가 생겨요. 그림 ①의 [설정 열기]로 가서 2단계 인증을 켜세요.</li><li>켰는데도 안 보이면 그림 ②의 [바로 가기] 링크를 직접 누르세요(메뉴에 숨어 있는 경우가 많아요).</li><li>회사·학교 계정(@회사이름.com)은 관리자가 막아둔 경우가 있어요. 개인 @gmail.com 계정을 쓰세요.</li></ol>` },
+      { q: '"Gmail 로그인이 거절됐어요 (535)"가 나와요', a: `주소나 앱 비밀번호가 맞지 않다는 뜻이에요. 앱 비밀번호를 <b>새로 하나 더 만들어서</b> 다시 붙여넣고 [저장하고 확인]을 누르세요. 예전 것은 지워도 괜찮아요.` },
+      { q: '"16글자여야 해요"라고 나와요', a: `구글이 노란 상자에 보여준 코드만 복사해야 해요. 앞뒤의 다른 글자까지 복사되지 않았는지 확인하세요. 평소 비밀번호를 넣으면 이 안내가 나와요.` },
+      { q: '앱 비밀번호를 잊어버렸어요 / 창을 닫았어요', a: `다시 볼 수는 없지만 <b>새로 만들면</b> 돼요. 그림 ②부터 다시 하세요. 이름은 아무거나 괜찮아요.` },
+      { q: '회사 PC에서 "인터넷 연결" 오류가 나요', a: `회사 네트워크가 메일 발송(smtp.gmail.com 465번)을 막는 경우가 있어요. 저장은 됐으니 [다음 단계]로 넘어가도 되지만, 실제 메일은 안 갈 수 있어요. 집 PC나 다른 네트워크에서 해보세요.` },
+    ])}
+    ${nav('gmail', states)}
+  </section>`;
+}
+
+// ---------------------------------------------------------------------------
+// 4단계: 첫 자동화 만들기
+// ---------------------------------------------------------------------------
+function viewAgent(states) {
+  const st = S.status;
+  const s = states.agent;
+  const info = st ? st.agents.basic : { file: 'agent/daily_market_agent.js' };
+  const run = job('run-basic');
+  let box;
+  if (run && run.state === 'running') box = stateBox('doing', '', `<b>테스트 메일을 보내는 중…</b> ${elapsed(run.started)}<br><span class="small">처음에는 필요한 부품을 설치하느라 1~2분 걸릴 수 있어요.</span>`);
+  else if (s === 'done' && run && run.state === 'ok') box = stateBox('done', '🎉', `<b>테스트 메일을 보냈어요! 메일함을 확인해보세요.</b><br><span class="small">안 보이면 <b>스팸함</b>도 확인하세요. 받는 주소: ${esc(st.config.recipient || st.config.gmail_sender)}</span>`);
+  else if (s === 'done') box = stateBox('done', '✅', `<b>자동화 프로그램이 만들어졌어요</b> <span class="small">(${esc(info.file)})</span><br><span class="small">Claude Code가 테스트 메일을 이미 보냈을 거예요. 메일함을 확인하고, 다시 보내보려면 [테스트 메일 보내기]를 누르세요.</span>`);
+  else if (s === 'error') box = stateBox('warn', '⚠️', '<b>프로그램은 만들어졌는데, 실행하다 문제가 생겼어요.</b> 아래 빨간 상자를 읽어주세요.');
+  else if (s === 'doing') box = stateBox('doing', '', `<b>Claude Code가 만드는 중이라면 기다려주세요.</b><br><span class="small"><code>${esc(info.file)}</code> 파일이 생기면 자동으로 초록 체크가 돼요(보통 2~5분).</span>`);
+  else box = stateBox('todo', '⬜', `<b>아직 만들지 않았어요.</b> 아래 순서대로 Claude Code에게 부탁해보세요.`);
+  return `<section class="card">
+    ${head('agent', s, 'Claude Code에게 부탁해서 "매일 아침 환율·코스피 요약 메일" 프로그램을 만들어요.', '이게 Claude Code의 핵심이에요. 코딩을 몰라도 말로 부탁하면 프로그램이 만들어지는 걸 직접 경험해봐요. 인증키가 필요 없는 공개 데이터만 써요.')}
+    ${box}
+    <ol class="steps-ol">
+      <li><b>Claude Code 창 열기</b> — 2단계에서 연 창이 아직 열려 있으면 그 창을 써도 돼요.
+        <div class="row"><button class="btn secondary" data-action="terminal" data-for="agent">🖥️ Claude Code 창 열기</button></div></li>
+      <li><b>요청 문장 복사</b> — 문장을 직접 쓸 필요 없어요. 아래 버튼을 누르세요.
+        ${copyBlock(PROMPT_BASIC, '요청 문장 복사', '복사됐어요! 검은 창을 한 번 클릭하고 Ctrl+V → Enter를 누르세요.')}</li>
+      <li><b>검은 창에 붙여넣기</b> — 검은 창을 마우스로 한 번 클릭하고 <span class="kbd">Ctrl</span>+<span class="kbd">V</span> → <span class="kbd">Enter</span>.
+        <div class="small muted">Ctrl+V가 안 되면 마우스 오른쪽 버튼을 눌러보세요.</div></li>
+      <li><b>허락해주기</b> — Claude가 "파일을 만들어도 될까요?", "이 명령을 실행해도 될까요?"라고 물으면 <b>1번(Yes)</b>을 고르고 <span class="kbd">Enter</span>. 몇 번 물어볼 수 있어요.</li>
+      <li><b>기다리기</b> — 2~5분 정도 걸려요. 파일이 생기면 이 화면이 자동으로 알아차려요. 끝나면 메일함을 확인하세요!</li>
+    </ol>
     <div class="row">
-      <input type="number" id="f-hour" min="0" max="23" value="7" style="width:70px">
-      <span>시</span>
-      <input type="number" id="f-min" min="0" max="59" value="0" style="width:70px">
-      <span>분</span>
+      <button class="btn ${s === 'done' ? '' : 'plain'}" data-action="job" data-job="run-basic" ${!info.exists || (run && run.state === 'running') ? 'disabled' : ''}>✉️ 테스트 메일 보내기</button>
+      ${!info.exists ? '<span class="small muted">프로그램이 만들어지면 눌러볼 수 있어요.</span>' : ''}
+    </div>
+    ${run && run.state === 'ok' && run.output ? `<details data-key="run-out"${S.ui.open['run-out'] ? ' open' : ''}><summary>실행 결과 보기</summary><pre class="raw">${esc(run.output)}</pre></details>` : ''}
+    ${jobError('run-basic', { fix: run && run.state === 'error' && run.error && run.error.kind !== 'agent_missing' ? fixPrompt(run.raw) : '', retry: 'retry-run' })}
+    <div class="state info"><span class="ico">🔒</span><div class="small">요청 문장에 "비밀번호 파일(.env)을 열어보지 말라"고 적어두었고, 마법사 폴더의 설정(<code>.claude/settings.json</code>)으로도 Claude Code가 그 파일을 읽지 못하게 막아뒀어요.</div></div>
+    ${stuck('agent', [
+      { q: 'Ctrl+V를 눌러도 붙여넣기가 안 돼요', a: `검은 창을 마우스로 한 번 클릭한 다음 다시 <span class="kbd">Ctrl</span>+<span class="kbd">V</span>를 눌러보세요. 그래도 안 되면 <b>마우스 오른쪽 버튼</b>을 한 번 누르면 붙여넣어져요.` },
+      { q: 'Claude가 질문을 하거나 선택지를 보여줘요', a: `편하게 대답하면 돼요. 잘 모르겠으면 <b>"알아서 가장 쉬운 방법으로 해줘"</b>라고 입력하고 Enter를 누르세요. 허락을 물으면 1번(Yes)을 고르세요.` },
+      { q: '다 됐다는데 이 화면이 초록 체크가 안 돼요', a: `파일 이름이 다르게 만들어졌을 수 있어요. 아래 문장을 복사해서 검은 창에 붙여넣으세요.${copyBlock(PROMPT_RENAME, '이름 바꾸기 요청 복사')}` },
+      { q: '테스트 메일이 안 와요', a: `<ol><li>Gmail의 <b>스팸함</b>과 "프로모션" 탭을 확인하세요.</li><li>3단계에서 받는 주소가 맞는지 확인하세요.</li><li>[테스트 메일 보내기]를 눌러 오류가 나오면, 빨간 상자의 [고쳐달라고 요청 복사]를 눌러 Claude에게 붙여넣으세요.</li></ol>` },
+      { q: '"사용량 한도(usage limit)"에 걸렸다고 나와요', a: `구독 요금제의 사용량을 다 쓴 거예요. 안내된 시간이 지나면 다시 쓸 수 있어요. 그동안 이 화면은 그대로 두셔도 돼요.` },
+    ])}
+    ${nav('agent', states)}
+  </section>`;
+}
+
+// ---------------------------------------------------------------------------
+// 5단계: 매일 자동 실행 예약
+// ---------------------------------------------------------------------------
+function hourLabel(h) {
+  if (h === 0) return '밤 12시 (자정)';
+  if (h < 12) return `오전 ${h}시`;
+  if (h === 12) return '낮 12시';
+  return `오후 ${h - 12}시`;
+}
+function timeLabel(h, m) { return `${hourLabel(h)}${m ? ` ${m}분` : ''}`; }
+
+function viewSchedule(states) {
+  const st = S.status;
+  const s = states.schedule;
+  const sched = st ? st.schedule.basic : { registered: false };
+  const res = S.ui.results.schedule;
+  const run = job('run-basic');
+  const isWin = !st || st.os === 'Windows';
+  let box;
+  if (S.ui.pending.schedule) box = stateBox('doing', '', '<b>예약을 바꾸는 중…</b>');
+  else if (sched.registered) box = stateBox('done', '✅', `<b>예약됨: 매일 ${sched.hour !== undefined ? timeLabel(sched.hour, sched.minute) : ''}에 자동으로 메일을 보내요.</b><br><span class="small">${isWin ? 'Windows 작업 스케줄러' : 'crontab'}에 "${isWin ? 'ClaudeDailyMarket' : 'ClaudeWizard:ClaudeDailyMarket'}"라는 이름으로 등록됐어요.${res && res.fallback ? ' (간단 방식으로 등록됨: 노트북은 전원을 꽂아둬야 실행될 수 있어요)' : ''}</span>`);
+  else box = stateBox('todo', '⬜', '<b>아직 예약하지 않았어요.</b> 시각을 고르고 [매일 자동 실행 등록]을 누르세요.');
+  const hours = Array.from({ length: 24 }, (_, h) => `<option value="${h}" ${S.form.hour == h ? 'selected' : ''}>${hourLabel(h)}</option>`).join('');
+  const mins = Array.from({ length: 12 }, (_, i) => i * 5).map((m) => `<option value="${m}" ${S.form.minute == m ? 'selected' : ''}>${String(m).padStart(2, '0')}분</option>`).join('');
+  const last = st && st.last_run;
+  return `<section class="card">
+    ${head('schedule', s, '정해진 시각에 매일 저절로 메일이 오도록 예약해요.', '매번 직접 실행하지 않아도 되게 하는 게 "자동화"예요. 예약해두면 매일 아침 메일함만 열면 돼요.')}
+    ${box}
+    <div class="state warn"><span class="ico">💡</span><div><b>PC가 켜져 있어야 실행돼요.</b><br>
+      <span class="small">예약한 시각에 PC가 꺼져 있거나 잠자기(절전) 상태면 그 시각에는 보내지 않아요. 대신 다음에 PC를 켜고 로그인하면 놓친 것을 한 번 보내요.${isWin ? ' 등록할 때 관리자 권한은 필요 없어요(내 계정에만 등록).' : ''}</span></div></div>
+    <label class="field">매일 몇 시에 받을까요?</label>
+    <div class="row">
+      <select id="f-hour" data-bind="hour" aria-label="시">${hours}</select>
+      <select id="f-min" data-bind="minute" aria-label="분">${mins}</select>
     </div>
     <div class="row">
-      <button class="btn" onclick="setSchedule()">매일 자동 발송 예약</button>
-      <button class="btn secondary" onclick="testSend()">지금 테스트 발송</button>
-    </div>` : ''}
-    <div class="log" id="log-final"></div>
-  </div>
-
-  <div class="step" style="border-style:dashed;background:#fbfaf7">
-    <div class="step-head"><div class="step-title">🎓 심화 학습 (선택)</div>${agentDone ? '' : badge('1~5단계 완료 후 도전', 'wait')}</div>
-    <div class="step-desc">기본 버전이 잘 되면, 터미널에서 Claude Code한테 이렇게 더 시켜볼 수 있어요 — 안 하셔도 지금 상태로 충분히 잘 동작합니다.</div>
-    <details><summary>다음 도전 과제 보기</summary>
-      <div class="guide">
-        <b>① 한국 섹터 정보도 추가해보기</b><br>
-        한국거래소(KRX) 데이터를 쓰려면 API 키가 하나 더 필요해요(data-dbg.krx.co.kr에서 무료 발급).
-        키를 발급받으신 뒤, 터미널에서 이렇게 시켜보세요:
-        <div style="background:#1e1e1e;color:#e8e8e8;padding:10px;border-radius:6px;font-family:monospace;font-size:12px;margin:8px 0;user-select:all;">
-          한국 섹터 등락률도 같이 조회해서 이메일에 추가해줘. KRX API 키는 .env의 KRX_AUTH_KEY에서 읽게 해줘.
-        </div>
-        <b>② 보기 좋게 꾸미기</b>
-        <div style="background:#1e1e1e;color:#e8e8e8;padding:10px;border-radius:6px;font-family:monospace;font-size:12px;margin:8px 0;user-select:all;">
-          이메일을 표 형태의 예쁜 HTML로 꾸며줘. 오른 종목은 빨간색, 내린 종목은 파란색으로 보여줘.
-        </div>
-        <b>③ 요약도 추가하기</b>
-        <div style="background:#1e1e1e;color:#e8e8e8;padding:10px;border-radius:6px;font-family:monospace;font-size:12px;margin:8px 0;user-select:all;">
-          오늘 등락률을 보고 어떤 섹터가 강세/약세였는지 3문장으로 요약도 같이 넣어줘.
-        </div>
-        <b>④ 내 컴퓨터를 꺼도 계속 돌아가게 하기 (클라우드에 올리기)</b><br>
-        지금까지는 이 컴퓨터가 켜져 있어야만 매일 발송이 됩니다. 구글 클라우드(무료 등급 있음)의 작은 서버 컴퓨터에
-        옮겨두면, 내 컴퓨터를 꺼도 24시간 알아서 돌아갑니다. 구글 계정만 있으면 시작할 수 있어요:
-        <div style="background:#1e1e1e;color:#e8e8e8;padding:10px;border-radius:6px;font-family:monospace;font-size:12px;margin:8px 0;user-select:all;">
-          이 에이전트를 구글 클라우드(Google Cloud) 가상서버에 올려서, 내 컴퓨터를 꺼도
-          매일 자동으로 실행되게 하고 싶어. 계정 준비부터 서버 만들기, 코드 옮기기,
-          매일 자동 실행 설정까지 하나씩 순서대로 안내해줘.
-        </div>
-        <div class="hint">이 과정은 구글 클라우드 계정 가입이 필요하고, 사용량에 따라 비용이 발생할 수 있어요(작은 서버는 대부분 무료 등급 안에 들어갑니다). Claude Code가 단계마다 무엇을 클릭/입력해야 하는지 안내해줄 거예요.</div>
-        이런 식으로 조금씩 요청을 더해가면서 원하는 모습으로 계속 발전시킬 수 있어요 — 이게 Claude Code를 쓰는 가장 자연스러운 방법입니다.
-      </div>
-    </details>
-  </div>
-
-  <div class="step" style="border-style:dashed;background:#fbfaf7">
-    <div class="step-head"><div class="step-title">🚀 다음 레벨: 나만의 자동매매 에이전트 만들기 (선택)</div>${agentDone ? '' : badge('1~5단계 완료 후 도전', 'wait')}</div>
-    <div class="step-desc">
-      여기까지 잘 따라오셨다면, 실제 증권사 API를 붙여서 <b>모의투자(가짜 돈)</b>로 자동매매까지 해볼 수 있어요.
-      진짜 돈은 전혀 쓰지 않으니 안심하세요. 다만 증권사 계좌 개설·클라우드 가입 등 여러 외부 서비스를 거쳐야 해서
-      위 단계들과 달리 <b>반나절~하루 정도 걸릴 수 있는 좀 더 본격적인 프로젝트</b>예요.
+      <button class="btn" data-action="schedule" ${S.ui.pending.schedule ? 'disabled' : ''}>${sched.registered ? '이 시각으로 바꾸기' : '⏰ 매일 자동 실행 등록'}</button>
+      <button class="btn secondary" data-action="job" data-job="run-basic" ${run && run.state === 'running' ? 'disabled' : ''}>▶ 지금 한 번 실행</button>
+      ${sched.registered ? '<button class="btn plain" data-action="unschedule">예약 해제</button>' : ''}
     </div>
-    <details open><summary>준비 절차 + 만들 봇 전략 보기 (아주 상세 버전)</summary>
-      <div class="guide">
+    ${res && !res.ok ? errorBox(res.error, res.raw, { key: 'schedule', retry: 'schedule' }) : ''}
+    ${run && run.state === 'running' ? stateBox('doing', '', `<b>지금 실행하는 중…</b> ${elapsed(run.started)}`) : ''}
+    ${run && run.state === 'ok' ? stateBox('done', '📬', '<b>방금 실행했어요. 메일함을 확인하세요.</b>') : ''}
+    ${jobError('run-basic', { fix: run && run.state === 'error' ? fixPrompt(run.raw) : '', retry: 'retry-run' })}
+    ${last ? `<h3>최근 실행 기록 <span class="small muted">(agent/last_run.log)</span></h3><pre class="raw">${esc(last.lines.join('\n'))}</pre>` : ''}
+    ${stuck('schedule', [
+      { q: '"액세스가 거부되었습니다" / 등록이 안 돼요', a: `회사 PC는 보안 정책으로 예약 작업 등록을 막는 경우가 있어요. 전산 담당자에게 "내 계정으로 작업 스케줄러 작업을 만들 수 있게 해달라"고 요청하세요. 집 PC라면 열려 있는 다른 창을 닫고 [다시 시도]를 눌러보세요.` },
+      { q: '시간이 됐는데 메일이 안 왔어요', a: `<ol><li>그 시각에 PC가 켜져 있었는지, 잠자기 상태가 아니었는지 확인하세요.</li><li>[지금 한 번 실행]을 눌러서 메일이 오는지 확인하세요. 오면 예약 문제, 안 오면 프로그램 문제예요.</li><li>"최근 실행 기록"에 실패가 있으면 4단계의 [고쳐달라고 요청 복사]를 이용하세요.</li></ol>` },
+      { q: '아침에 검은 창이 잠깐 떴다가 사라져요', a: `정상이에요. 예약된 프로그램이 실행되면서 잠깐 보이는 창이에요. 저절로 닫혀요.` },
+      { q: '그만 받고 싶어요 / 시간을 바꾸고 싶어요', a: `시간을 바꾸려면 시각을 다시 고르고 [이 시각으로 바꾸기]. 그만 받으려면 [예약 해제]를 누르세요. 프로그램 파일은 지워지지 않아요.` },
+      { q: 'PC를 꺼도 매일 받고 싶어요', a: `그러려면 항상 켜져 있는 "클라우드 서버"에 옮겨야 해요. 완료 화면의 "다음 도전"에서 Claude Code에게 부탁하는 문장을 드려요.` },
+    ])}
+    ${nav('schedule', states)}
+  </section>`;
+}
 
-        <div class="tip">
-          💬 <b>먼저 알아두세요:</b> Claude Code는 화면의 버튼을 대신 눌러줄 수 없어요 (증권사 사이트, 구글 클라우드 화면 같은
-          외부 웹사이트는 조작 못 합니다) — 그래서 계좌 개설이나 클라우드 콘솔 클릭 같은 건 직접 하셔야 해요.
-          하지만 <b>터미널 안에서 하는 모든 것</b>(코드 작성, 파일 만들기, 서버 설정, 실행, 문제 해결)은 Claude Code한테 말로 시키면 됩니다.
-          막히면 그냥 <b>"이 부분 잘 모르겠어, 쉽게 설명해줘"</b> 라고 말하면 돼요 — 이렇게 물어보는 것 자체가 Claude Code를 쓰는 정상적인 방법입니다.
-        </div>
+// ---------------------------------------------------------------------------
+// 완료 화면 (+ 심화 실습)
+// ---------------------------------------------------------------------------
+function viewFinish(states) {
+  const st = S.status;
+  const sched = st ? st.schedule.basic : {};
+  const adv = st ? st.agents.advanced : { exists: false };
+  const advSched = st ? st.schedule.advanced : { registered: false };
+  const advRun = job('run-advanced');
+  const allDone = WORK.every((w) => states[w] === 'done');
+  return `<section class="card">
+    <div class="kicker">완료</div>
+    <h2>${allDone ? '🎉 모두 끝났어요! 수고하셨어요' : '거의 다 왔어요'}</h2>
+    ${allDone ? stateBox('done', '✅', `<b>Claude Code 설치 → 로그인 → 첫 자동화 → 매일 예약</b>까지 혼자 해내셨어요.<br><span class="small">내일 ${sched.hour !== undefined ? timeLabel(sched.hour, sched.minute) : '정해진 시각'}에 첫 자동 메일이 와요 (PC가 켜져 있으면).</span>`)
+      : stateBox('warn', '⚠️', '아직 끝나지 않은 단계가 있어요. 위 진행 막대에서 회색·빨간 단계를 눌러 마무리하세요.')}
+    <h3>Claude Code에게 더 부탁해보기</h3>
+    <p class="small">검은 창(Claude Code)에 아래 문장 중 하나를 복사해 붙여넣어보세요. 이렇게 조금씩 부탁하며 발전시키는 게 Claude Code를 쓰는 방법이에요.</p>
+    <div class="twocol">
+      <div class="box"><b>보기 좋게 꾸미기</b>${copyBlock('agent/daily_market_agent.js 가 보내는 메일을 표 형태의 보기 좋은 HTML로 꾸며줘. 오른 것은 빨간색, 내린 것은 파란색으로 보여줘. 고친 다음 테스트 메일 1통 보내줘.', '복사')}</div>
+      <div class="box"><b>한 줄 요약 넣기</b>${copyBlock('agent/daily_market_agent.js 메일 맨 위에 오늘 환율과 코스피 흐름을 쉬운 말로 2문장 요약해서 넣어줘. 고친 다음 테스트 메일 1통 보내줘.', '복사')}</div>
+    </div>
 
-        <b>Ⅰ. 한국투자증권 모의투자 계좌 + API 키 준비</b> <span style="color:var(--muted);font-weight:400;">(직접 해야 하는 단계)</span><br>
-        실전투자가 아니라 <b>모의투자</b>(가상의 돈으로 연습하는 계좌)만 씁니다 — 잃을 돈이 없으니 안전해요.
-        <ol>
-          <li>한국투자증권 앱이나 홈페이지에서 비대면 계좌를 개설하세요 (신분증만 있으면 보통 10~15분).</li>
-          <li><a href="https://apiportal.koreainvestment.com" target="_blank" rel="noopener">KIS Developers 포털</a>에 접속해서 회원가입하세요.</li>
-          <li>로그인 후 상단 메뉴에서 "모의투자 신청"을 찾아 신청하세요 (승인까지 몇 분~몇 시간 걸릴 수 있어요).</li>
-          <li>승인되면 "나의 앱 관리" 같은 메뉴에서 앱을 하나 등록하면 <b>앱키(App Key)</b>와 <b>앱시크릿(App Secret)</b>이라는 긴 문자열 두 개를 줍니다. 메모장 같은 곳에 잠깐 복사해두세요.</li>
-          <li>모의투자 계좌번호도 함께 확인해두세요 (보통 <code>12345678-01</code> 형태의 8자리-2자리 숫자입니다).</li>
-        </ol>
-        <div class="hint">앱키/앱시크릿/계좌번호는 계좌 비밀번호와 같은 취급을 하세요 — 화면 캡처해서 남에게 보내거나 인터넷에 올리면 안 됩니다.</div>
-
-        <b>Ⅱ. 텔레그램 봇 만들기 (매매 리포트 받을 채널)</b> <span style="color:var(--muted);font-weight:400;">(직접 해야 하는 단계)</span><br>
-        <ol>
-          <li>휴대폰이나 PC의 텔레그램 앱에서 <code>BotFather</code>를 검색해서 대화를 시작하세요 (파란 체크가 붙은 공식 봇이에요).</li>
-          <li><code>/newbot</code>이라고 입력하고 Enter — 봇 이름과 아이디를 순서대로 물어봅니다. 아무렇게나 정하시면 됩니다 (아이디는 끝에 꼭 <code>bot</code>이 들어가야 해요, 예: <code>my_sector_bot</code>).</li>
-          <li>다 만들어지면 <b>긴 토큰 문자열</b>을 줍니다 (예: <code>123456789:AAExample...</code>). 그대로 복사해두세요.</li>
-          <li>방금 만든 내 봇을 텔레그램에서 검색해 들어가서, <code>/start</code>나 아무 메시지나 하나 보내두세요 (이게 "내 채팅방 번호"를 알아내는 데 필요해요).</li>
-        </ol>
-        <div class="tip">
-          💬 <b>"챗 아이디"를 어떻게 알아내는지 모르겠다면?</b> 나중에 Ⅴ단계에서 Claude Code한테 이렇게 물어보세요:
-          <br><code>"방금 만든 텔레그램 봇 토큰이 여기 있어(토큰 붙여넣기). 내 챗 아이디를 알아내는 방법을 알려주고, 확인까지 도와줘."</code>
-          Claude Code가 확인용 링크나 방법을 알려주고, 알아낸 챗 아이디를 코드에 바로 넣어줄 거예요.
-        </div>
-
-        <b>Ⅲ. 구글 클라우드(GCP)에 24시간 서버 만들기</b> <span style="color:var(--muted);font-weight:400;">(직접 클릭해야 하는 부분)</span><br>
-        자동매매 봇은 내 컴퓨터를 꺼도 계속 돌아야 하니, 항상 켜져 있는 작은 클라우드 서버가 필요해요. 처음이면 낯설 수 있는데, 하나씩만 따라오시면 됩니다.
-        <ol>
-          <li><a href="https://console.cloud.google.com" target="_blank" rel="noopener">console.cloud.google.com</a>에 접속해서 평소 쓰는 구글 계정으로 로그인하세요.</li>
-          <li>처음이면 "무료로 시작하기"가 뜹니다 — 국가/약관에 동의하고 신용카드 정보를 입력하세요.
-            <div class="tip">💬 신용카드를 넣으라고 해서 걱정되시나요? 본인 확인용이고, 별도로 "결제 계정 업그레이드"를 직접 누르지 않는 이상 자동으로 돈이 빠져나가지 않아요. 게다가 이런 초소형 서버 1대는 대부분 무료 등급 범위 안에 들어갑니다. 그래도 불안하면 Claude Code한테 <code>"구글 클라우드 무료 등급 조건이랑, 내가 지금 결제 계정 상태가 어떤지 확인하는 법을 알려줘"</code>라고 물어보고 진행하세요.</div>
-          </li>
-          <li>화면 상단의 "프로젝트 선택" → "새 프로젝트"를 눌러 이름을 정하고(예: <code>my-trading-bot</code>) 만드세요.</li>
-          <li>왼쪽 ☰ 메뉴(또는 검색창)에서 <b>"Compute Engine"</b>을 찾아 들어가세요. 처음이면 "사용 설정" 버튼이 뜨는데, 누르고 1분 정도 기다리세요.</li>
-          <li>"인스턴스 만들기" 버튼을 누르고:
-            <ul>
-              <li>이름: 아무렇게나 (예: <code>trading-bot</code>)</li>
-              <li>리전: <b>us-west1, us-central1, us-east1</b> 중 하나를 고르면 평생 무료 등급에 포함될 가능성이 높아요. 서울(<code>asia-northeast3</code>)을 고르면 반응은 더 빠르지만 무료 등급 대상이 아닐 수 있어, 처음 90일 무료체험 크레딧이 끝난 뒤 한 달에 몇 달러 정도 청구될 수 있습니다. 확실하지 않으면 화면에 "무료 등급 사용 가능" 문구가 뜨는지 직접 확인하세요.</li>
-              <li>머신 유형: <code>e2-micro</code> (가장 작고 무료 등급에 해당하는 사양)</li>
-              <li>나머지는 기본값 그대로 두고 맨 아래 "만들기"를 누르세요.</li>
-            </ul>
-          </li>
-          <li>30초~1분 뒤 인스턴스 목록에 방금 만든 서버가 나타납니다. 그 줄 오른쪽의 <b>"SSH"</b> 버튼을 누르세요 — 아무것도 설치할 필요 없이, 브라우저 안에 새 창으로 검은 터미널 화면이 바로 뜹니다. <b>이제부터 이 창이 여러분의 "24시간 서버 터미널"입니다.</b></li>
-        </ol>
-        <div class="hint">이 SSH 터미널은 지금 이 마법사가 켜진 내 컴퓨터가 아니라, 구글 클라우드에 있는 완전히 별도의 컴퓨터입니다 — 이 창을 닫아도 서버 자체는 계속 켜져 있어요.</div>
-
-        <b>Ⅳ. 그 서버(SSH 터미널) 안에서 Claude Code 설치 & 로그인</b> <span style="color:var(--muted);font-weight:400;">(여기부터는 앞의 1·2단계와 같은 패턴)</span><br>
-        방금 연 SSH 터미널 창에 그대로 아래를 순서대로 입력하세요.
-        <ol>
-          <li><code>node --version</code> 입력 후 Enter — 버전 숫자가 나오면 이미 설치되어 있는 것, <code>command not found</code>가 나오면 설치가 필요합니다.</li>
-          <li>Node.js가 없다면: <code>sudo apt-get update && sudo apt-get install -y nodejs npm</code></li>
-          <li><code>npm install -g @anthropic-ai/claude-code</code> — Claude Code를 설치합니다.</li>
-          <li><code>claude</code>라고 입력하고 Enter — 로그인 링크가 나오면 눌러서(또는 링크를 복사해 새 탭에 붙여넣어) 로그인하세요. 앞서 로컬 컴퓨터에서 로그인할 때와 똑같은 방식이에요.</li>
-        </ol>
-        <div class="tip">💬 이 단계에서 뭔가 에러가 나거나 이해 안 가는 메시지가 뜨면, 당황하지 말고 <code>claude</code>를 실행한 채로 그 에러 메시지를 그대로 붙여넣고 <code>"이 에러가 무슨 뜻이야? 어떻게 해결해?"</code>라고 물어보세요.</div>
-
-        <b>Ⅴ. 자동매매 봇 만들기 — Claude Code에게 시킬 실제 문장</b><br>
-        같은 터미널(Ⅳ에서 로그인까지 마친 그 화면)에 아래 문장을 <b>그대로 복사해서</b> 붙여넣고 Enter를 누르세요:
-        <div style="background:#1e1e1e;color:#e8e8e8;padding:10px;border-radius:6px;font-family:monospace;font-size:12px;margin:8px 0;user-select:all;">
-          한국투자증권 모의투자 API로 간단한 자동매매 봇을 만들고 싶어. trading_bot이라는 폴더를 새로 만들어서 그 안에 코드를 넣어줘.
-          전략은 이렇게 해줘: 매일 장이 시작하면(시가) 내가 정한 종목을 매수하고, 매수가보다 2% 오르면 바로 매도해서 수익을 실현해줘.
-          만약 장 마감 직전까지 2%에 도달하지 못하면 그냥 종가 근처에서 강제로 매도해서 그날 안에 포지션을 정리해줘.
-          매수/매도할 때마다 체결가와 수익률을 텔레그램으로 보고해줘. 증권사 앱키·앱시크릿·계좌번호, 텔레그램 봇 토큰은
-          전부 trading_bot/.env 파일에서 읽게 해주고, 매일 자동으로 실행되도록 크론(cron)으로 등록해줘.
-        </div>
-        <ol start="1">
-          <li>Claude Code가 코드를 작성하는 과정이 화면에 나타납니다. 중간에 "종목 코드가 뭐야?", "앱키를 알려줘" 같은 질문을 할 수 있어요 — Ⅰ·Ⅱ에서 준비해둔 값들을 그때그때 편하게 답하시면 됩니다.</li>
-          <li>다 만들어지면(터미널 커서가 멈추면) 아래 <b>".env 파일 채우기"</b>로 넘어가세요.</li>
-        </ol>
-
-        <div class="warnbox">
-          📁 <b>.env 파일은 정확히 어디에, 어떻게 넣나요?</b><br>
-          앞에서 만든 "이메일 섹터 리포트" 에이전트는 이 마법사 화면(3단계 폼)이 <code>.env</code>를 대신 관리해줬지만,
-          지금 만드는 이 자동매매 봇은 마법사가 관리하지 않는 <b>완전히 별도의 새 프로젝트</b>라서 이 값들은 직접 넣어야 해요.
-          가장 쉬운 방법은 <b>Claude Code한테 시키는 것</b>입니다 — 이 SSH 터미널 화면에 그대로 이렇게 입력하세요:
-          <div style="background:#1e1e1e;color:#e8e8e8;padding:10px;border-radius:6px;font-family:monospace;font-size:12px;margin:8px 0;user-select:all;">
-            trading_bot/.env 파일에 아래 값들을 넣어줘:
-            앱키는 (여기에 Ⅰ에서 받은 앱키), 앱시크릿은 (여기에 앱시크릿),
-            계좌번호는 (여기에 계좌번호), 텔레그램 봇 토큰은 (여기에 Ⅱ에서 받은 토큰)이야.
+    <h3>🎓 심화 실습: 업종(섹터) 리포트 <span class="tag">KRX API 키 필요</span></h3>
+    <p class="small">한국거래소 데이터로 업종별 등락률 메일을 만들어요. <a href="https://data-dbg.krx.co.kr" target="_blank" rel="noopener">KRX 정보데이터시스템(data-dbg.krx.co.kr)</a>에서 무료로 키를 받아야 해요(승인까지 하루쯤 걸릴 수 있어요).</p>
+    <details data-key="advanced"${S.ui.open.advanced ? ' open' : ''}><summary>심화 실습 펼치기</summary>
+      <ol class="steps-ol">
+        <li><b>KRX API 키 저장</b> ${st && st.config.has_krx_key ? '<span class="saved-tag">✓ 저장됨</span>' : ''}
+          <input type="password" id="f-krx" data-bind="krx_key" value="${esc(S.form.krx_key)}" autocomplete="new-password" placeholder="${st && st.config.has_krx_key ? '이미 저장됨 — 바꿀 때만 새로 붙여넣기' : 'KRX에서 받은 인증키 붙여넣기'}">
+          <div class="row"><button class="btn small" data-action="save-krx">저장</button>${S.ui.results.krx ? (S.ui.results.krx.ok ? '<span style="color:var(--ok);font-weight:700">✓ 저장했어요</span>' : '') : ''}</div>
+          ${S.ui.results.krx && !S.ui.results.krx.ok ? errorBox(S.ui.results.krx.error, '', { key: 'krx' }) : ''}</li>
+        <li><b>Claude Code에게 부탁하기</b>${copyBlock(PROMPT_ADVANCED, '심화 요청 문장 복사', '복사됐어요! 검은 창을 클릭하고 Ctrl+V → Enter를 누르세요.')}</li>
+        <li><b>확인하고 예약하기</b> ${adv.exists ? '<span class="saved-tag">✓ 프로그램 있음</span>' : '<span class="small muted">(agent/sector_report_agent.js가 생기면 버튼이 켜져요)</span>'}
+          <div class="row">
+            <button class="btn small secondary" data-action="job" data-job="run-advanced" ${!adv.exists || (advRun && advRun.state === 'running') ? 'disabled' : ''}>▶ 지금 한 번 실행</button>
+            <button class="btn small" data-action="schedule-adv" ${!adv.exists ? 'disabled' : ''}>${advSched.registered ? '예약됨 ✓ (시각 바꾸기)' : '⏰ 5단계와 같은 시각에 매일 예약'}</button>
+            ${advSched.registered ? '<button class="btn small plain" data-action="unschedule-adv">예약 해제</button>' : ''}
           </div>
-          이렇게 하면 Claude Code가 파일을 직접 열어서 알맞은 형식으로 저장해줍니다 — 어느 폴더의 어떤 파일인지 몰라도 됩니다.
-          (참고: 이 값들은 모의투자용이라 실제 돈과는 연결되어 있지 않지만, 그래도 비밀번호처럼 남에게 공유하지는 마세요.)
-          <br><br>
-          직접 열어서 편집하고 싶다면: 이 SSH 터미널에는 메모장이 없으니 <code>nano trading_bot/.env</code>라고 입력하면 화면 안에서 바로 편집할 수 있는 간단한 편집기가 열립니다.
-          값을 다 입력한 뒤 <code>Ctrl+O</code> → Enter(저장) → <code>Ctrl+X</code>(나가기) 순서로 누르면 됩니다.
-        </div>
+          ${advRun && advRun.state === 'running' ? stateBox('doing', '', `실행 중… ${elapsed(advRun.started)}`) : ''}
+          ${advRun && advRun.state === 'ok' ? stateBox('done', '📬', '실행했어요. 메일함을 확인하세요.') : ''}
+          ${jobError('run-advanced', { fix: advRun && advRun.state === 'error' ? fixPrompt(advRun.raw, 'agent/sector_report_agent.js') : '' })}
+          ${S.ui.results.scheduleAdv && !S.ui.results.scheduleAdv.ok ? errorBox(S.ui.results.scheduleAdv.error, S.ui.results.scheduleAdv.raw, { key: 'schedule-adv' }) : ''}</li>
+      </ol>
+    </details>
 
-        <div class="tip">
-          💬 <b>정말 잘 만들어졌는지, 잘 돌아가는지 확인하고 싶다면</b> 이렇게 물어보세요:
-          <br><code>"봇을 만들어서 VM에 올려서 잘 돌아가게 해줘. 지금 당장 한 번 테스트로 실행해보고, crontab에도 잘 등록됐는지 확인해줘."</code>
-          Claude Code가 테스트 실행 → 결과 확인 → 자동 실행 등록까지 순서대로 진행하면서 진행 상황을 알려줄 거예요.
-        </div>
+    <h3>☁️ PC를 꺼도 매일 받으려면</h3>
+    <details data-key="cloud"${S.ui.open.cloud ? ' open' : ''}><summary>클라우드 서버로 옮기기 (선택, 비용이 생길 수 있음)</summary>
+      <p class="small">지금은 이 PC가 켜져 있어야 메일이 가요. 항상 켜져 있는 클라우드 서버(예: 구글 클라우드)에 옮기면 PC를 꺼도 돼요. 가입이 필요하고 사용량에 따라 비용이 생길 수 있어요.</p>
+      ${copyBlock('이 에이전트(agent 폴더)를 구글 클라우드(Google Cloud) 가상서버에 올려서, 내 컴퓨터를 꺼도 매일 자동으로 실행되게 하고 싶어. 계정 준비부터 서버 만들기, 코드 옮기기, 매일 자동 실행 설정까지 내가 클릭할 곳을 하나씩 순서대로 쉬운 말로 안내해줘. 비용이 생길 수 있는 부분은 먼저 알려줘.', '복사')}
+    </details>
 
-        <b>Ⅵ. (보너스) 매매내역 리포트 기능 추가하기</b><br>
-        봇이 며칠 돌아간 뒤에는, 그동안의 매매 결과를 정리해서 보고받는 기능도 유용해요. 같은 터미널에서 이렇게 시켜보세요:
-        <div style="background:#1e1e1e;color:#e8e8e8;padding:10px;border-radius:6px;font-family:monospace;font-size:12px;margin:8px 0;user-select:all;">
-          매일 장 마감 후에, 오늘 이 봇이 실제로 매매한 내역(몇 번 사고팔았는지, 이겼는지 졌는지, 오늘 실현손익은 얼마인지)을
-          정리해서 텔레그램으로 요약 보고해주는 기능도 추가해줘. 이것도 매일 자동으로 실행되도록 크론에 등록해줘.
-        </div>
-        <div class="tip">
-          💬 <b>더 발전시키고 싶다면</b> 이런 식으로 계속 대화하면서 요청하면 됩니다: <code>"승률이랑 평균 수익률도 같이 보여줘"</code>,
-          <code>"이번 주 전체 성과를 일요일 저녁에 한 번 더 요약해서 보내줘"</code> 등 — 정답이 정해진 게 아니라, 원하는 걸 편하게 말로 요청하면서 조금씩 발전시켜 나가는 게 Claude Code를 쓰는 방법입니다.
-        </div>
-
-        <b>Ⅶ. 잊지 마세요</b>
-        <ul>
-          <li>연습 단계에서는 <b>절대 실전투자 계좌로 바꾸지 마세요</b> — 모의투자로 충분히 오래 지켜본 뒤에 신중하게 결정할 문제예요.</li>
-          <li>증권사 모의투자 API는 너무 자주 조회하면 일시적 오류가 날 수 있어요 — 이상 동작이 보이면 <code>"너무 자주 조회하는 것 같은데 재시도 로직을 넣어줘"</code>라고 요청하세요.</li>
-          <li>서버 요금이 걱정되면 언제든 GCP 콘솔에서 해당 인스턴스를 "중지" 또는 "삭제"할 수 있어요 — 헷갈리면 Claude Code한테 <code>"이 구글 클라우드 서버를 요금 안 나가게 완전히 정리하는 방법을 알려줘"</code>라고 물어보세요.</li>
-        </ul>
+    <h3>🚀 다음 레벨: 모의투자 자동매매 봇 (선택)</h3>
+    <details data-key="trading"${S.ui.open.trading ? ' open' : ''}><summary>준비 절차 보기 (반나절~하루 걸리는 본격 프로젝트)</summary>
+      <div class="small">
+        <p>증권사 API를 붙여 <b>모의투자(가짜 돈)</b>로 자동매매를 연습해볼 수 있어요. 진짜 돈은 쓰지 않아요. 계좌 개설·클라우드 가입처럼 직접 클릭해야 하는 부분이 많아요.</p>
+        <p><b>Ⅰ. 한국투자증권 모의투자 계좌 + API 키</b> (직접): 비대면 계좌 개설 → <a href="https://apiportal.koreainvestment.com" target="_blank" rel="noopener">KIS Developers</a> 가입 → 모의투자 신청 → 앱 등록 후 앱키·앱시크릿·모의 계좌번호 메모. 이 값들은 비밀번호처럼 다루세요.</p>
+        <p><b>Ⅱ. 텔레그램 봇</b> (직접): 텔레그램에서 BotFather 검색 → <code>/newbot</code> → 이름 정하기 → 받은 토큰 메모 → 내 봇에게 아무 메시지나 보내두기.</p>
+        <p><b>Ⅲ. 24시간 서버</b>: <a href="https://console.cloud.google.com" target="_blank" rel="noopener">구글 클라우드 콘솔</a> → Compute Engine → 인스턴스 만들기(e2-micro, us-west1/us-central1/us-east1 리전이 무료 등급 대상일 가능성이 높아요) → [SSH] 버튼으로 서버 터미널 열기.</p>
+        <p><b>Ⅳ. 서버에 Claude Code 설치·로그인</b>: 서버 터미널에서 Claude Code에게 부탁할 수 없으니 이 부분만 공식 안내(<a href="https://claude.com/claude-code" target="_blank" rel="noopener">claude.com/claude-code</a>)를 따라 설치하고 <code>claude</code>로 로그인하세요.</p>
+        <p><b>Ⅴ. 봇 만들기</b>: 서버의 Claude Code에 아래 문장을 붙여넣으세요.</p>
+        ${copyBlock('한국투자증권 모의투자 API로 간단한 자동매매 봇을 만들고 싶어. trading_bot이라는 폴더를 새로 만들어서 그 안에 코드를 넣어줘. 전략: 매일 장이 시작하면 내가 정한 종목을 매수하고, 매수가보다 2% 오르면 바로 매도해줘. 장 마감 직전까지 2%에 도달하지 못하면 종가 근처에서 매도해서 그날 안에 정리해줘. 매수/매도할 때마다 체결가와 수익률을 텔레그램으로 보고해줘. 앱키·앱시크릿·계좌번호·텔레그램 토큰은 trading_bot/.env 에서 읽고, 그 파일 내용은 출력하지 마. 매일 자동 실행되도록 cron에 등록해줘. 실전투자 주소는 절대 쓰지 말고 모의투자 주소만 써줘. 나는 프로그래밍을 몰라서 쉬운 한국어로 설명해줘.', '자동매매 요청 문장 복사')}
+        <p><b>잊지 마세요</b>: 연습 중에는 <b>절대 실전투자 계좌로 바꾸지 마세요</b>. 서버 요금이 걱정되면 콘솔에서 인스턴스를 중지·삭제할 수 있어요.</p>
       </div>
     </details>
-  </div>
-  `;
+    <div class="nav"><button class="btn plain" data-action="go" data-view="schedule">← 이전</button>
+      <button class="btn plain" data-action="go" data-view="start">처음 화면</button></div>
+  </section>`;
 }
 
-async function installClaude() {
-  showLog('log-claude', '설치 중입니다...');
-  const r = await api('/api/install/claude', {method:'POST'});
-  showLog('log-claude', (r.stdout||'') + '\n' + (r.stderr||'') + (r.message ? '\n'+r.message : ''));
-  await refreshCheck();
+// ===========================================================================
+// 화면 다시 그릴 때 입력 중이던 칸의 포커스 유지
+// ===========================================================================
+function captureFocus() {
+  const a = document.activeElement;
+  if (!a || !a.id || !document.getElementById('view').contains(a)) return null;
+  return { id: a.id, start: a.selectionStart, end: a.selectionEnd };
+}
+function restoreFocus(f) {
+  if (!f) return;
+  const el = document.getElementById(f.id);
+  if (!el) return;
+  el.focus();
+  try { if (f.start != null) el.setSelectionRange(f.start, f.end); } catch (e) { /* select 등은 지원 안 함 */ }
 }
 
-async function openTerminal(logId) {
-  const r = await api('/api/open-terminal', {method:'POST'});
-  if (!r.ok) showLog(logId || 'log-login', r.message || '터미널을 열지 못했습니다.');
-}
-
-async function checkLogin() {
-  showLog('log-login', '확인 중...');
-  const r = await api('/api/check-login', {method:'POST'});
-  STATE.loginChecked = !!r.logged_in;
-  showLog('log-login', r.logged_in ? '✅ 로그인 확인됐습니다!' : ('아직 확인이 안 됩니다. ' + (r.message||'') + '\n' + (r.raw||'')));
+// ===========================================================================
+// 동작
+// ===========================================================================
+function go(view) {
+  S.view = view;
+  S.autoNext = null;
+  clearTimeout(S.autoTimer);
+  if (!DEMO) { try { history.replaceState(null, '', '#' + view); } catch (e) { /* ignore */ } }
   render();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+let toastTimer = null;
+function toast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.hidden = false;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { t.hidden = true; }, 4000);
+}
+
+async function copyText(text, msg) {
+  let ok = false;
+  try { await navigator.clipboard.writeText(text); ok = true; } catch (e) {
+    const ta = document.createElement('textarea');
+    ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta); ta.select();
+    try { ok = document.execCommand('copy'); } catch (e2) { ok = false; }
+    ta.remove();
+  }
+  toast(ok ? (msg || '복사됐어요! 붙여넣을 곳을 클릭하고 Ctrl+V를 누르세요.') : '복사가 안 됐어요. 글자를 마우스로 드래그해서 선택한 뒤 Ctrl+C를 눌러주세요.');
+}
+
+async function startJob(name) {
+  try {
+    const r = await api('/api/jobs/' + name, {});
+    if (r && r.job && S.status) { S.status.jobs = Object.assign({}, S.status.jobs, { [name]: r.job }); render(); }
+  } catch (e) { S.serverDown = true; render(); }
+  schedulePoll();
+}
+
+async function syncAction(key, fn) {
+  S.ui.pending[key] = true;
+  delete S.ui.results[key];
+  render();
+  try {
+    S.ui.results[key] = await fn();
+  } catch (e) {
+    S.ui.results[key] = { ok: false, error: { kind: 'server_down', title: '마법사 서버와 연결이 끊겼어요', what: '마법사의 검은 창이 닫혔거나 멈춘 것 같아요.', todo: ['start.bat을 다시 더블클릭한 뒤 다시 눌러주세요.'] } };
+  }
+  S.ui.pending[key] = false;
+  await refresh();
+  return S.ui.results[key];
 }
 
 async function saveConfig() {
-  const body = {
-    gmail_sender: document.getElementById('f-gmail').value,
-    gmail_app_password: document.getElementById('f-pw').value,
-    recipient: document.getElementById('f-recipient').value || document.getElementById('f-gmail').value,
-    krx_key: document.getElementById('f-krx').value,
+  const f = S.form;
+  const r = await syncAction('save', () => api('/api/save-config', { gmail_sender: f.gmail_sender, gmail_app_password: f.gmail_app_password, recipient: f.recipient }));
+  if (r && r.ok) {
+    S.form.gmail_app_password = '';
+    toast('저장했어요. 이제 Gmail 로그인을 확인할게요.');
+    await startJob('smtp-check');
+  }
+}
+
+const ACTIONS = {
+  go: (el) => { if (!el.disabled) go(el.dataset.view); },
+  refresh: () => refresh(),
+  begin: () => go(firstOpenStep(computeStates())),
+  copy: (el) => copyText(el.dataset.copy, el.dataset.msg),
+  stuck: (el) => { S.ui.stuck[el.dataset.step] = !S.ui.stuck[el.dataset.step]; render(); },
+  job: (el) => startJob(el.dataset.job),
+  'retry-install': () => startJob('install'),
+  'retry-run': () => startJob('run-basic'),
+  'verify-login': () => startJob('login-verify'),
+  'smtp-check': () => startJob('smtp-check'),
+  'save-config': () => saveConfig(),
+  'save-krx': async () => {
+    const r = await syncAction('krx', () => api('/api/save-config', { gmail_sender: S.status.config.gmail_sender, recipient: S.status.config.recipient, krx_key: S.form.krx_key }));
+    if (r && r.ok) { S.form.krx_key = ''; render(); }
+  },
+  terminal: async (el) => {
+    const who = el.dataset.for;
+    const r = await syncAction('terminal', () => api('/api/open-terminal', {}));
+    if (r && r.ok) {
+      S.ui.opened[who] = true;
+      toast(r.claude_found === false ? '검은 창을 열었어요. (Claude Code를 찾지 못해 빈 창이 열렸어요 — 1단계를 확인하세요)' : '검은 창을 열었어요! 작업 표시줄에서 "Claude Code" 창을 찾아보세요.');
+    } else if (r) {
+      toast('검은 창을 열지 못했어요: ' + ((r.error && r.error.title) || ''));
+    }
+    render();
+  },
+  schedule: () => syncAction('schedule', () => api('/api/schedule', { job: 'basic', hour: Number(S.form.hour), minute: Number(S.form.minute) })),
+  unschedule: () => syncAction('schedule', () => api('/api/unschedule', { job: 'basic' })),
+  'schedule-adv': () => syncAction('scheduleAdv', () => api('/api/schedule', { job: 'advanced', hour: Number(S.form.hour), minute: Number(S.form.minute) })),
+  'unschedule-adv': () => syncAction('scheduleAdv', () => api('/api/unschedule', { job: 'advanced' })),
+  check: (el) => { S.checklist[el.dataset.key] = el.checked; saveLocal('checklist', S.checklist); render(); },
+};
+
+document.addEventListener('click', (e) => {
+  const el = e.target.closest('[data-action]');
+  if (!el || el.tagName === 'INPUT') return;
+  const fn = ACTIONS[el.dataset.action];
+  if (fn) { e.preventDefault(); fn(el); }
+});
+document.addEventListener('change', (e) => {
+  const el = e.target;
+  if (el.matches('input[type=checkbox][data-action]')) ACTIONS[el.dataset.action](el);
+  if (el.matches('select[data-bind]')) { S.form[el.dataset.bind] = Number(el.value); }
+});
+document.addEventListener('input', (e) => {
+  const el = e.target;
+  if (el.matches('input[data-bind]')) {
+    S.form[el.dataset.bind] = el.value;
+    if (el.dataset.bind === 'gmail_app_password') render(); // 글자 수 표시 갱신
+  }
+});
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && e.target.matches('form[data-form=gmail] input')) { e.preventDefault(); saveConfig(); }
+});
+// <details>를 열고 닫은 상태를 기억해서, 화면을 다시 그려도 그대로 유지
+document.addEventListener('toggle', (e) => {
+  const k = e.target.dataset && e.target.dataset.key;
+  if (k) S.ui.open[k] = e.target.open;
+}, true);
+// 진행 중 작업의 "몇 분 지남" 표시만 1초마다 갱신
+setInterval(() => {
+  document.querySelectorAll('[data-elapsed]').forEach((el) => {
+    const sec = Math.max(0, Math.round((Date.now() - Number(el.dataset.elapsed)) / 1000));
+    el.textContent = `(${Math.floor(sec / 60)}분 ${sec % 60}초 지남)`;
+  });
+}, 1000);
+
+// ===========================================================================
+// 데모 모드: index.html?demo=1 — 서버 없이 각 단계의 상태를 바꿔가며 화면을 볼 수 있다.
+//   예) ?demo=1&view=gmail&state=error  (그 앞 단계들은 자동으로 '완료')
+// ===========================================================================
+const DEMO_ERRORS = {
+  install: { error: { kind: 'network', title: '인터넷 연결에 문제가 있어요', what: '인터넷에 연결하지 못했거나, 회사·학교 네트워크의 보안 장치(프록시·방화벽)가 막고 있어요.', todo: ['와이파이나 랜선이 연결돼 있는지, 다른 웹사이트가 잘 열리는지 확인하세요.', '회사 PC라면 전산 담당자에게 "npm(registry.npmjs.org)과 Gmail 메일 발송(smtp.gmail.com 465번)이 막혀 있는지" 물어보세요.', '확인 후 [다시 시도]를 눌러주세요.'] },
+    raw: 'npm error code ENOTFOUND\nnpm error syscall getaddrinfo\nnpm error errno ENOTFOUND\nnpm error network request to https://registry.npmjs.org/@anthropic-ai%2fclaude-code failed, reason: getaddrinfo ENOTFOUND registry.npmjs.org\n(종료 코드: 1)' },
+  login: { error: { kind: 'not_logged_in', title: '아직 Claude 로그인이 안 돼 있어요', what: 'Claude Code가 로그인 정보를 찾지 못했어요.', todo: ['2단계의 [로그인 창 열기]를 눌러 로그인을 마쳐주세요.', '유료 구독(Pro/Max) 계정인지 확인하세요. 무료 계정은 Claude Code를 쓸 수 없어요.'] },
+    raw: 'Invalid API key · Please run /login\n(종료 코드: 1)' },
+  gmail: { error: { kind: 'smtp_auth', title: 'Gmail 로그인이 거절됐어요 (535)', what: 'Gmail 주소나 앱 비밀번호가 맞지 않는다고 구글이 대답했어요. 오타가 있거나, 앱 비밀번호를 삭제했거나, 평소 비밀번호를 넣은 경우에 이렇게 돼요.', todo: ['Gmail 주소에 오타가 없는지 확인하세요.', '앱 비밀번호를 새로 발급받아 다시 붙여넣고 [저장하고 확인]을 누르세요(예전 것은 지워도 됩니다).'] },
+    raw: '535-5.7.8 Username and Password not accepted. For more information, go to\n535 5.7.8  https://support.google.com/mail/?p=BadCredentials' },
+  agent: { error: { kind: 'code_error', title: '만든 프로그램 안에 오류가 있어요', what: 'Claude Code가 만든 프로그램이 실행 도중 멈췄어요. 흔한 일이고, Claude Code에게 고쳐달라고 하면 됩니다.', todo: ['아래 [고쳐달라고 요청 복사]를 누르세요.', 'Claude Code 창에 Ctrl+V로 붙여넣고 Enter를 누르세요. 고쳐지면 다시 [테스트 메일 보내기]를 누르세요.'] },
+    raw: "TypeError: Cannot read properties of undefined (reading 'regularMarketPrice')\n    at fetchKospi (C:\\Users\\hong\\claude_setup_wizard\\agent\\daily_market_agent.js:42:31)\n(종료 코드: 1)" },
+  schedule: { error: { kind: 'permission', title: '권한이 없어서 막혔어요', what: '이 작업에 필요한 권한이 없어서 컴퓨터가 막았어요. 다른 창이 파일을 쓰고 있거나, 백신 프로그램이 막는 경우도 있어요.', todo: ['열려 있는 Claude Code·명령 프롬프트 창을 모두 닫고 [다시 시도]를 눌러주세요.', '회사 PC라면 관리자에게 "프로그램 설치/예약 작업 등록 권한"을 문의하세요.'] },
+    raw: '오류: 액세스가 거부되었습니다.\n(종료 코드: 1)' },
+};
+
+function demoStatus() {
+  const d = S.demo.states;
+  const now = Date.now();
+  const jobs = {};
+  const gmailHas = d.gmail !== 'todo';
+  const st = {
+    app: 'claude-setup-wizard', os: 'Windows', work_dir: 'C:\\Users\\hong\\Downloads\\claude_setup_wizard',
+    node: { version: 'v22.11.0', ok: true, min: 18 },
+    claude: { installed: d.install === 'done', version: d.install === 'done' ? '2.1.42' : null },
+    login: { logged_in: d.login === 'done' },
+    config: { gmail_sender: gmailHas ? 'hong@gmail.com' : '', recipient: gmailHas ? 'hong@gmail.com' : '', has_gmail_password: gmailHas && d.gmail !== 'doing', has_krx_key: false },
+    smtp: d.gmail === 'done' ? { ok: true, at: now } : null,
+    agents: { basic: { exists: d.agent === 'done' || d.agent === 'error', file: 'agent/daily_market_agent.js' }, advanced: { exists: false, file: 'agent/sector_report_agent.js' } },
+    schedule: { basic: d.schedule === 'done' ? { registered: true, hour: 7, minute: 0 } : { registered: false }, advanced: { registered: false } },
+    last_run: d.schedule === 'done' ? { lines: ['2026-10-06 07:00:04 성공: 메일 1통 보냄 (원/달러 1,386.20 / 코스피 2,612.45 +0.82%)', '2026-10-07 07:00:03 성공: 메일 1통 보냄 (원/달러 1,381.70 / 코스피 2,598.10 -0.55%)'] } : null,
+    jobs,
   };
-  const r = await api('/api/save-config', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)});
-  showLog('log-config', r.ok ? '✅ 저장했습니다.' : '저장 실패');
-  await refreshCheck();
+  const started = now - 42000;
+  if (d.install === 'doing') jobs.install = { state: 'running', started };
+  if (d.install === 'error') jobs.install = Object.assign({ state: 'error' }, DEMO_ERRORS.install);
+  S.ui.opened.login = d.login === 'doing';
+  if (d.login === 'error') jobs['login-verify'] = Object.assign({ state: 'error' }, DEMO_ERRORS.login);
+  if (d.gmail === 'doing') jobs['smtp-check'] = { state: 'running', started: now - 3000 };
+  if (d.gmail === 'error') jobs['smtp-check'] = Object.assign({ state: 'error' }, DEMO_ERRORS.gmail);
+  S.ui.opened.agent = d.agent === 'doing';
+  if (d.agent === 'error') jobs['run-basic'] = Object.assign({ state: 'error' }, DEMO_ERRORS.agent);
+  S.ui.pending.schedule = d.schedule === 'doing';
+  S.ui.results.schedule = d.schedule === 'error' ? Object.assign({ ok: false }, DEMO_ERRORS.schedule) : undefined;
+  if (d.gmail !== 'doing' && d.gmail !== 'error') S.ui.pending.save = false;
+  return st;
 }
 
-async function setSchedule() {
-  const hour = document.getElementById('f-hour').value;
-  const minute = document.getElementById('f-min').value;
-  showLog('log-final', '예약 등록 중...');
-  const r = await api('/api/schedule', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({hour, minute})});
-  showLog('log-final', r.ok ? `✅ 매일 ${hour}:${minute}에 자동 발송되도록 예약했습니다.` : ('예약 실패: ' + (r.stderr||r.message||'')));
+function demoApi(path) {
+  // 데모에서 버튼을 누르면: 진행 중 → 잠시 뒤 완료 로 바뀐다.
+  const map = { '/api/jobs/install': 'install', '/api/jobs/login-verify': 'login', '/api/open-terminal': S.view === 'agent' ? 'agent' : 'login', '/api/save-config': 'gmail', '/api/jobs/smtp-check': 'gmail', '/api/jobs/run-basic': 'agent', '/api/schedule': 'schedule' };
+  const step = map[path];
+  if (step) {
+    S.demo.states[step] = 'doing';
+    setTimeout(() => { S.demo.states[step] = 'done'; refresh(); }, 1800);
+  }
+  if (path === '/api/unschedule') { S.demo.states.schedule = 'todo'; }
+  return Promise.resolve({ ok: true, claude_found: true });
 }
 
-async function testSend() {
-  showLog('log-final', '테스트 발송 중입니다... (최대 3분 정도 걸릴 수 있어요)');
-  const r = await api('/api/test-send', {method:'POST'});
-  showLog('log-final', (r.stdout||'') + '\n' + (r.stderr||''));
+function renderDemo() {
+  const el = document.getElementById('demo');
+  if (!DEMO || S.demo.hidden) { if (el.innerHTML) el.innerHTML = ''; return; }
+  const cur = WORK.includes(S.view) ? S.view : null;
+  const html = `<div class="demo" role="region" aria-label="데모 모드 조작판">
+    <button class="x" data-demo="hide" title="조작판 숨기기">×</button>
+    <b>데모 모드</b> <span style="color:#bbb">서버 없이 화면만 확인</span>
+    <div class="r">${STEPS.map((s) => `<button class="${S.view === s.id ? 'on' : ''}" data-demo="view" data-v="${s.id}">${s.n || ''}${s.n ? ' ' : ''}${esc(s.short)}</button>`).join('')}</div>
+    ${cur ? `<div style="margin-top:6px">${STEPS.find((s) => s.id === cur).n}단계 상태:</div>
+    <div class="r">${['todo', 'doing', 'done', 'error'].map((k) => `<button class="${S.demo.states[cur] === k ? 'on' : ''}" data-demo="state" data-v="${k}">${STATE_LABEL[k]}</button>`).join('')}</div>` : ''}
+    <div class="r"><button data-demo="all" data-v="done">모두 완료</button><button data-demo="all" data-v="todo">모두 처음으로</button></div>
+  </div>`;
+  if (el.innerHTML !== html) el.innerHTML = html;
 }
 
-refreshCheck();
+document.addEventListener('click', (e) => {
+  const el = e.target.closest('[data-demo]');
+  if (!el) return;
+  const k = el.dataset.demo; const v = el.dataset.v;
+  if (k === 'hide') S.demo.hidden = true;
+  if (k === 'view') { S.view = v; }
+  if (k === 'state' && WORK.includes(S.view)) S.demo.states[S.view] = v;
+  if (k === 'all') WORK.forEach((w) => { S.demo.states[w] = v; });
+  refresh();
+});
+
+// ===========================================================================
+// 시작
+// ===========================================================================
+(function init() {
+  if (DEMO) {
+    const v = PARAMS.get('view');
+    const stt = PARAMS.get('state');
+    if (v && STEPS.some((s) => s.id === v)) {
+      S.view = v;
+      const idx = WORK.indexOf(v);
+      WORK.forEach((w, i) => { if (idx < 0 ? v === 'finish' : i < idx) S.demo.states[w] = 'done'; });
+      if (idx >= 0 && stt && STATE_LABEL[stt]) S.demo.states[v] = stt;
+    }
+    if (PARAMS.get('stuck') === '1' && WORK.includes(S.view)) S.ui.stuck[S.view] = true;
+    if (PARAMS.get('panel') === '0') S.demo.hidden = true;
+    if (PARAMS.get('checked') === '1') S.checklist = { win: true, net: true, sub: true, gmail: true };
+    refresh();
+    return;
+  }
+  const hash = location.hash.replace('#', '');
+  if (STEPS.some((s) => s.id === hash)) S.view = hash;
+  refresh().then(() => {
+    if (!unlocked(S.view, computeStates())) S.view = 'start';
+    render();
+    schedulePoll();
+  });
+})();
 </script>
 </body>
 </html>
