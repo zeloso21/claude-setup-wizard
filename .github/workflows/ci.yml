@@ -24,3 +24,18 @@ jobs:
         run: node --test test/*.test.js
       - name: 배포 zip 시험 빌드
         run: python3 scripts/build_release.py ci
+
+  # Windows 실기: 테스트(창 배치 PowerShell 포함) + 실행 파일(exe) 빌드 후 실제로 켜지는지 확인
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: 테스트 (node:test)
+        run: node --test "test/*.test.js"
+      - name: exe 빌드
+        run: node scripts/build_exe.js
+      - name: exe 실행 확인
+        run: node scripts/smoke_exe.js dist/ClaudeSetupWizard.exe

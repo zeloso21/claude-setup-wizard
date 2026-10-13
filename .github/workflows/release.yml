@@ -1,6 +1,6 @@
-# v* 태그를 푸시하면 배포 zip을 만들어 같은 이름의 GitHub Release에 첨부한다.
+# v* 태그를 푸시하면 배포 zip과 실행 파일(ClaudeSetupWizard.exe)을 만들어 같은 이름의 GitHub Release에 첨부한다.
 # 릴리스가 아직 없으면 "초안(draft)"으로 만들어두므로, 내용을 확인한 뒤 직접 공개(Publish)하면 된다.
-name: Release zip
+name: Release
 on:
   push:
     tags: ['v*']
@@ -43,3 +43,27 @@ jobs:
           else
             gh release create "$TAG" "${{ steps.zip.outputs.file }}" --draft --title "$TAG" --notes "Claude Code 설치 마법사 $TAG"
           fi
+
+  # Windows용 실행 파일. zip 작업이 릴리스(초안)를 만든 뒤에 같은 릴리스에 붙인다.
+  exe:
+    needs: build
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: exe 빌드
+        run: node scripts/build_exe.js
+      - name: exe 실행 확인
+        run: node scripts/smoke_exe.js dist/ClaudeSetupWizard.exe
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ClaudeSetupWizard-exe
+          path: dist/ClaudeSetupWizard.exe
+      - name: Release에 첨부
+        if: github.ref_type == 'tag'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "${GITHUB_REF_NAME}" dist/ClaudeSetupWizard.exe --clobber

@@ -3,8 +3,10 @@
 // Claude Code 자체가 Node.js 기반이라, 이 마법사도 같은 Node.js 위에서 돌아가게 만들어
 // 파이썬 같은 별도 실행환경을 추가로 요구하지 않는다.
 //
-// 이 파일은 두 가지로 쓰인다.
+// 이 파일은 세 가지로 쓰인다.
 //  - `node server.js` : 마법사 서버를 띄우고 브라우저를 연다(start.bat이 이렇게 실행).
+//  - ClaudeSetupWizard.exe : Node.js 단일 실행 파일(SEA)로 묶은 것(scripts/build_exe.js).
+//    화면 파일(public/*.html)은 exe 안에 들어 있고, Node.js가 없는 PC에서도 바로 켜진다.
 //  - 모듈로 불러오기 : 테스트(test/server.test.js)가 내부 함수를 불러 검사한다.
 'use strict';
 const http = require('http');
@@ -15,10 +17,17 @@ const path = require('path');
 const os = require('os');
 const { execFile, spawn } = require('child_process');
 
+let sea = null;
+try { sea = require('node:sea'); } catch (e) { /* 오래된 Node.js에는 없음 */ }
+const IS_SEA = !!(sea && typeof sea.isSea === 'function' && sea.isSea());
+
 const APP_ID = 'claude-setup-wizard';
-const BASE = __dirname;
+const BASE = IS_SEA ? path.dirname(process.execPath) : __dirname;
 // 테스트에서는 WIZARD_WORK_DIR로 임시 폴더를 지정해 실제 agent/ 폴더를 건드리지 않는다.
-const WORK_DIR = process.env.WIZARD_WORK_DIR ? path.resolve(process.env.WIZARD_WORK_DIR) : BASE;
+// exe는 [다운로드] 폴더 등 아무 데서나 실행될 수 있으므로, 작업 폴더를 내 계정 아래 고정 위치로 둔다
+// (exe를 옮기거나 다시 받아도 하던 곳부터 이어진다).
+const WORK_DIR = process.env.WIZARD_WORK_DIR ? path.resolve(process.env.WIZARD_WORK_DIR)
+  : IS_SEA ? path.join(os.homedir(), 'claude_setup_wizard') : BASE;
 const AGENT_DIR = path.join(WORK_DIR, 'agent');
 const ENV_PATH = path.join(AGENT_DIR, '.env');
 const PUBLIC_DIR = path.join(BASE, 'public');
@@ -97,17 +106,28 @@ function which(cmd) {
   return null;
 }
 
+// 만든 자동화를 실행하고 예약할 때 쓰는 "이 PC의" Node.js. exe로 실행 중이면 process.execPath는
+// 마법사 자신이므로 쓰면 안 된다(그때 Node.js가 없으면 null).
 function systemNodeBin() {
-  return which('node') || process.execPath;
+  const w = which('node');
+  if (w) return w;
+  if (IS_WIN) {
+    const guess = path.join(process.env.ProgramFiles || 'C:\\Program Files', 'nodejs', 'node.exe');
+    if (isFile(guess)) return guess;
+  }
+  return IS_SEA ? null : process.execPath;
 }
+
+const NODE_MISSING = { ok: false, code: 'ENOENT', stderr: 'node: command not found' };
 
 function npmBin() {
   const w = which('npm');
   if (w) return w;
   // Node.js를 막 설치해서 PATH가 아직 갱신되지 않은 경우, 표준 설치 위치를 직접 찾아본다.
+  const node = systemNodeBin();
   const guess = IS_WIN
     ? path.join(process.env.ProgramFiles || 'C:\\Program Files', 'nodejs', 'npm.cmd')
-    : path.join(path.dirname(process.execPath), 'npm');
+    : path.join(path.dirname(node || process.execPath), 'npm');
   return isFile(guess) ? guess : null;
 }
 
@@ -135,7 +155,8 @@ function findClaude(home) {
 
 // 다른 프로그램(터미널, 예약 작업)을 띄울 때 node와 claude를 확실히 찾을 수 있도록 PATH 앞에 덧붙인다.
 function augmentedEnv() {
-  const extra = [path.dirname(systemNodeBin())];
+  const node = systemNodeBin();
+  const extra = node ? [path.dirname(node)] : [];
   const c = findClaude();
   if (c) extra.push(path.dirname(c));
   if (IS_WIN && process.env.APPDATA) extra.push(path.join(process.env.APPDATA, 'npm'));
@@ -428,7 +449,8 @@ async function checkSmtp() {
 
 const versionCache = new Map();
 
-async function claudeVersion(bin) {
+// `프로그램 --version`의 결과. 파일이 바뀌지 않았으면 기억해둔 값을 쓴다.
+async function binVersion(bin) {
   let mtime = 0;
   try { mtime = fs.statSync(bin).mtimeMs; } catch (e) { return null; }
   const hit = versionCache.get(bin);
@@ -437,6 +459,14 @@ async function claudeVersion(bin) {
   const version = r.ok ? (r.stdout.trim().split(/\s+/)[0] || 'installed') : null;
   if (version) versionCache.set(bin, { mtime, version });
   return version;
+}
+
+async function nodeStatus() {
+  const bin = systemNodeBin();
+  if (!bin) return { version: null, ok: false, missing: true, min: MIN_NODE_MAJOR };
+  const version = bin === process.execPath ? process.version : await binVersion(bin);
+  const major = Number(String(version || '').replace(/^v/, '').split('.')[0]);
+  return { version, ok: major >= MIN_NODE_MAJOR, missing: !version, min: MIN_NODE_MAJOR };
 }
 
 // 로그인 여부를 매번 Claude에게 물어보면 느리고 사용량도 든다. 그래서 평소에는
@@ -598,6 +628,7 @@ async function registerSchedule(job, hour, minute) {
     return { ok: false, error: { kind: 'agent_missing', title: '아직 자동화 프로그램이 없어요', what: `${AGENTS[job].file} 파일을 찾지 못했어요.`, todo: ['4단계에서 Claude Code에게 요청 문장을 붙여넣어 프로그램을 먼저 만들어주세요.'] } };
   }
   const nodeBin = systemNodeBin();
+  if (!nodeBin) return NODE_MISSING;
   const task = AGENTS[job].task;
   delete scheduleCache[job];
   if (IS_WIN) {
@@ -640,8 +671,30 @@ async function unregisterSchedule(job) {
 // 설치 / 실행
 // ---------------------------------------------------------------------------
 
+// Node.js가 없는 Windows PC(주로 exe로 처음 켠 경우)에서는 Windows에 들어 있는 winget으로
+// Node.js LTS를 먼저 설치한다. 모든 사용자용 설치라 "디바이스 변경 허용" 창이 한 번 뜬다.
+async function installNode() {
+  const r = await run('winget', ['install', '-e', '--id', 'OpenJS.NodeJS.LTS', '--silent',
+    '--accept-package-agreements', '--accept-source-agreements'], { timeout: 600000 });
+  versionCache.clear();
+  if (npmBin()) return { ok: true };
+  if (r.code === 'ENOENT') {
+    return { ok: false, stderr: 'winget: command not found', error: {
+      kind: 'node_missing', title: 'Node.js를 자동으로 설치하지 못했어요',
+      what: 'Claude Code를 돌리는 바탕 프로그램(Node.js)이 없는데, 이 PC에는 자동 설치 도구(winget)가 없어요.',
+      todo: ['nodejs.org에 들어가 초록색 "LTS" 버튼으로 설치 파일을 받아 설치하세요(다음·다음·마침).', '설치가 끝나면 이 화면에서 [다시 설치하기]를 누르세요.'],
+    } };
+  }
+  return { ...r, ok: false, stderr: [r.stderr, r.stdout, 'npm: command not found (Node.js 설치 확인 실패)'].filter(Boolean).join('\n') };
+}
+
 async function installClaude() {
-  const npm = npmBin();
+  let npm = npmBin();
+  if (!npm && IS_WIN) {
+    const n = await installNode();
+    if (!n.ok) return n;
+    npm = npmBin();
+  }
   if (!npm) return { ok: false, code: 'ENOENT', stderr: 'npm: command not found' };
   if (IS_WIN && process.env.APPDATA) {
     // 이 폴더가 없으면 npm이 ENOENT로 실패하는 경우가 많아서 미리 만들어둔다.
@@ -671,22 +724,142 @@ async function ensureAgentDeps(script) {
 async function runAgent(job) {
   const script = agentPath(job);
   if (!isFile(script)) return { ok: false, stderr: `Cannot find agent file ${AGENTS[job].file}`, error: { kind: 'agent_missing', title: '아직 자동화 프로그램이 없어요', what: `${AGENTS[job].file} 파일을 찾지 못했어요.`, todo: ['4단계에서 Claude Code에게 요청 문장을 붙여넣어 프로그램을 먼저 만들어주세요.'] } };
+  const nodeBin = systemNodeBin();
+  if (!nodeBin) return NODE_MISSING;
   const prep = await ensureAgentDeps(script);
   if (!prep.ok) return prep;
-  return run(systemNodeBin(), [script], { timeout: 180000, cwd: AGENT_DIR, env: augmentedEnv() });
+  return run(nodeBin, [script], { timeout: 180000, cwd: AGENT_DIR, env: augmentedEnv() });
 }
 
-function openTerminal() {
+// ---------------------------------------------------------------------------
+// 나란히 보기(Windows): Claude Code 창은 화면 왼쪽 절반, 마법사 안내 화면은 오른쪽 절반에 놓는다.
+// 창 위치를 바꾸는 기능은 Node.js에 없어서, Windows에 기본으로 들어 있는 PowerShell로 user32를 부른다.
+// 새로 뜬 터미널 창은 제목이 아니라(Claude Code가 제목을 바꾼다) "열기 전에는 없던 터미널 창"으로 찾는다.
+// 실패해도 창이 겹쳐 보일 뿐 동작에는 지장이 없다.
+// ---------------------------------------------------------------------------
+const PAGE_TITLE = 'Claude Code 설치 마법사';
+// 마법사 자신의 검은 창 제목. 다시 나란히 놓을 때 이 창은 옮기지 않는다(ASCII만: cmd 창 제목 깨짐 방지).
+const CONSOLE_TITLE = 'Claude Code Setup Wizard';
+
+const ARRANGE_PS = String.raw`$ErrorActionPreference = 'SilentlyContinue'
+Add-Type -TypeDefinition @'
+using System;
+using System.Collections.Generic;
+using System.Runtime.InteropServices;
+using System.Text;
+public static class WizWin {
+  public delegate bool EnumProc(IntPtr h, IntPtr l);
+  [DllImport("user32.dll")] static extern bool EnumWindows(EnumProc cb, IntPtr l);
+  [DllImport("user32.dll")] static extern bool IsWindowVisible(IntPtr h);
+  [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern int GetClassName(IntPtr h, StringBuilder s, int n);
+  [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern int GetWindowText(IntPtr h, StringBuilder s, int n);
+  [DllImport("user32.dll")] static extern bool ShowWindow(IntPtr h, int c);
+  [DllImport("user32.dll")] static extern bool SetWindowPos(IntPtr h, IntPtr after, int x, int y, int w, int hh, uint f);
+  [DllImport("user32.dll")] static extern bool SetForegroundWindow(IntPtr h);
+  [DllImport("user32.dll")] static extern IntPtr GetForegroundWindow();
+  [DllImport("user32.dll")] static extern bool SetProcessDPIAware();
+  [DllImport("user32.dll")] static extern bool SystemParametersInfo(uint a, uint b, ref RECT r, uint c);
+  [StructLayout(LayoutKind.Sequential)] public struct RECT { public int L, T, R, B; }
+  static string Cls(IntPtr h) { var s = new StringBuilder(256); GetClassName(h, s, 256); return s.ToString(); }
+  public static string Title(IntPtr h) { var s = new StringBuilder(512); GetWindowText(h, s, 512); return s.ToString(); }
+  public static bool IsTerm(IntPtr h) { string c = Cls(h); return c == "ConsoleWindowClass" || c == "CASCADIA_HOSTING_WINDOW_CLASS"; }
+  public static List<IntPtr> Terminals() {
+    var list = new List<IntPtr>();
+    EnumWindows((h, l) => { if (IsWindowVisible(h) && IsTerm(h)) list.Add(h); return true; }, IntPtr.Zero);
+    return list;
+  }
+  public static IntPtr FindTitle(string part) {
+    IntPtr found = IntPtr.Zero;
+    EnumWindows((h, l) => { if (IsWindowVisible(h) && !IsTerm(h) && Title(h).Contains(part)) { found = h; return false; } return true; }, IntPtr.Zero);
+    return found;
+  }
+  public static IntPtr TopTerminal(string skip) {
+    IntPtr found = IntPtr.Zero;
+    EnumWindows((h, l) => { if (IsWindowVisible(h) && IsTerm(h) && !Title(h).Contains(skip)) { found = h; return false; } return true; }, IntPtr.Zero);
+    return found;
+  }
+  public static IntPtr Foreground() { return GetForegroundWindow(); }
+  public static RECT WorkArea() { SetProcessDPIAware(); var r = new RECT(); SystemParametersInfo(0x30, 0, ref r, 0); return r; }
+  public static void Place(IntPtr h, int x, int y, int w, int hh) { ShowWindow(h, 9); SetWindowPos(h, IntPtr.Zero, x, y, w, hh, 0x0044); }
+  public static void Front(IntPtr h) { SetForegroundWindow(h); }
+}
+'@
+$term = [IntPtr]::Zero
+if ($env:WIZARD_LAUNCH) {
+  # PowerShell unrolls returned lists (0 -> $null, 1 -> scalar), so pin it as an array.
+  $before = @([WizWin]::Terminals())
+  $psi = New-Object System.Diagnostics.ProcessStartInfo
+  $psi.FileName = 'cmd.exe'
+  $psi.Arguments = $env:WIZARD_LAUNCH
+  $psi.UseShellExecute = $false
+  $psi.CreateNoWindow = $true
+  $psi.WorkingDirectory = $env:WIZARD_WORK_DIR_PATH
+  [void][System.Diagnostics.Process]::Start($psi)
+  $deadline = (Get-Date).AddSeconds(12)
+  while ($term -eq [IntPtr]::Zero -and (Get-Date) -lt $deadline) {
+    Start-Sleep -Milliseconds 300
+    foreach ($h in [WizWin]::Terminals()) { if ($before -notcontains $h) { $term = $h; break } }
+  }
+  if ($term -eq [IntPtr]::Zero) {
+    # Windows Terminal opened a tab in an existing window: use the foreground terminal.
+    $fg = [WizWin]::Foreground()
+    if ([WizWin]::IsTerm($fg) -and -not [WizWin]::Title($fg).Contains($env:WIZARD_SKIP)) { $term = $fg }
+  }
+} else {
+  # Re-arrange only: the topmost terminal window that is not the wizard's own console.
+  $term = [WizWin]::TopTerminal($env:WIZARD_SKIP)
+}
+$wa = [WizWin]::WorkArea()
+$w = $wa.R - $wa.L
+$h = $wa.B - $wa.T
+$half = [int][Math]::Floor($w / 2)
+$guide = [WizWin]::FindTitle($env:WIZARD_TITLE)
+if ($guide -ne [IntPtr]::Zero) { [WizWin]::Place($guide, $wa.L + $half, $wa.T, $w - $half, $h) }
+if ($term -ne [IntPtr]::Zero) { [WizWin]::Place($term, $wa.L, $wa.T, $half, $h); [WizWin]::Front($term) }
+`;
+
+function encodePs(script) {
+  return Buffer.from(script, 'utf16le').toString('base64');
+}
+
+// launch가 있으면 그 명령으로 새 터미널을 열고 그 창을 왼쪽에, 없으면 이미 열린 Claude Code 창을 다시 놓는다.
+function arrangeWindows(env, launch, onError) {
+  const ps = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-EncodedCommand', encodePs(ARRANGE_PS)], {
+    detached: true, stdio: 'ignore', windowsHide: true, cwd: WORK_DIR,
+    env: { ...env, WIZARD_LAUNCH: launch || '', WIZARD_TITLE: PAGE_TITLE, WIZARD_SKIP: CONSOLE_TITLE, WIZARD_WORK_DIR_PATH: WORK_DIR },
+  });
+  ps.on('error', onError || (() => {}));
+  ps.unref();
+}
+
+function rearrange() {
+  if (!IS_WIN) return { ok: false, code: 'ENOENT', stderr: 'arrange: Windows only' };
+  try { arrangeWindows(process.env, ''); return { ok: true, arranged: true }; } catch (e) { return { ok: false, stderr: String(e.message || e) }; }
+}
+
+// 터미널을 한 번이라도 열었는지(화면을 새로고침해도 "로그인 진행 중"을 유지하고, 자동 열기를 한 번만 하려고)
+let terminalOpened = false;
+
+function openTerminal({ arrange = false, auto = false } = {}) {
+  // 설치 직후/마법사를 켰을 때의 자동 열기는 한 번만. 새로고침이나 탭 여러 개로 창이 여러 개 뜨지 않게 한다.
+  if (auto && terminalOpened) return { ok: true, skipped: true, claude_found: !!findClaude() };
   const claude = findClaude();
   const env = augmentedEnv();
   try {
     if (IS_WIN) {
       // start /D 로 작업 폴더를 정해서 연다(Claude Code는 "지금 있는 폴더"를 기준으로 파일을 만들기 때문).
       // claude가 있으면 바로 실행되게 해서, 사용자가 명령어를 칠 필요가 없게 한다.
+      fs.mkdirSync(WORK_DIR, { recursive: true });
       const inner = claude ? `cmd.exe /k "${claude}"` : 'cmd.exe /k';
-      safeSpawn('cmd.exe', ['/d', '/c', `start "Claude Code" /D "${WORK_DIR}" ${inner}`], {
+      const launch = `/d /c start "Claude Code" /D "${WORK_DIR}" ${inner}`;
+      const plain = () => safeSpawn('cmd.exe', [launch], {
         detached: true, stdio: 'ignore', windowsHide: false, windowsVerbatimArguments: true, env, cwd: WORK_DIR,
       }).unref();
+      if (arrange) {
+        arrangeWindows(env, launch, plain); // PowerShell이 막힌 PC: 배치 없이 창만 연다
+      } else {
+        plain();
+      }
     } else if (process.platform === 'darwin') {
       const q = (s) => `'${String(s).replace(/'/g, "'\\''")}'`;
       const cmd = `cd ${q(WORK_DIR)}${claude ? ' && ' + q(claude) : ''}`;
@@ -697,7 +870,8 @@ function openTerminal() {
       if (!t) return { ok: false, code: 'ENOENT', stderr: 'terminal: command not found' };
       safeSpawn(t, claude ? ['-e', claude] : [], { detached: true, stdio: 'ignore', cwd: WORK_DIR, env }).unref();
     }
-    return { ok: true, claude_found: !!claude };
+    terminalOpened = true;
+    return { ok: true, claude_found: !!claude, arranged: arrange && IS_WIN };
   } catch (e) {
     return { ok: false, stderr: String(e.message || e) };
   }
@@ -746,17 +920,16 @@ function startJob(name) {
 }
 
 async function getStatus() {
-  const nodeVer = process.version;
-  const major = Number(nodeVer.replace(/^v/, '').split('.')[0]);
   const claudeBin = findClaude();
-  const version = claudeBin ? await claudeVersion(claudeBin) : null;
+  const version = claudeBin ? await binVersion(claudeBin) : null;
   const ind = loginIndicators();
   const [schedBasic, schedAdv] = await Promise.all([querySchedule('basic'), querySchedule('advanced')]);
   return {
     app: APP_ID,
     os: IS_WIN ? 'Windows' : (process.platform === 'darwin' ? 'Mac' : 'Linux'),
     work_dir: WORK_DIR,
-    node: { version: nodeVer, ok: major >= MIN_NODE_MAJOR, min: MIN_NODE_MAJOR },
+    node: await nodeStatus(),
+    exe: IS_SEA,
     claude: { installed: !!(claudeBin && version), version, found_but_broken: !!(claudeBin && !version) },
     login: { logged_in: ind.logged_in || !!(loginVerified && loginVerified.ok), how: ind.how, verified: loginVerified },
     config: loadConfig(),
@@ -764,6 +937,7 @@ async function getStatus() {
     agents: { basic: agentInfo('basic'), advanced: agentInfo('advanced') },
     schedule: { basic: schedBasic, advanced: schedAdv },
     last_run: lastRunLog(),
+    terminal_opened: terminalOpened,
     jobs,
   };
 }
@@ -793,6 +967,29 @@ function readBody(req) {
 
 const STATIC = { '/': 'index.html', '/index.html': 'index.html', '/node-install.html': 'node-install.html' };
 
+// exe 안에는 화면 파일이 "자산(asset)"으로 들어 있다(scripts/build_exe.js).
+function readPublic(name) {
+  if (IS_SEA) return sea.getAsset(name, 'utf8');
+  return fs.readFileSync(path.join(PUBLIC_DIR, name), 'utf-8');
+}
+
+// Claude Code가 비밀번호 파일(agent/.env)을 읽지 못하게 막는 설정. zip에는 파일로 들어 있지만,
+// exe는 작업 폴더가 따로 있으므로 처음 켤 때 만들어둔다. 사용자가 고친 파일은 덮어쓰지 않는다.
+const CLAUDE_SETTINGS = {
+  permissions: {
+    deny: ['Read(./agent/.env)', 'Read(./agent/**/.env)', 'Read(./**/*.env)', 'Edit(./agent/.env)'],
+  },
+};
+
+function ensureWorkDir() {
+  try {
+    const p = path.join(WORK_DIR, '.claude', 'settings.json');
+    if (isFile(p)) return;
+    fs.mkdirSync(path.dirname(p), { recursive: true });
+    fs.writeFileSync(p, JSON.stringify(CLAUDE_SETTINGS, null, 2) + '\n', 'utf-8');
+  } catch (e) { /* 만들지 못해도 마법사는 동작한다 */ }
+}
+
 function createServer() {
   return http.createServer(async (req, res) => {
     // 이 서버는 이 PC 안에서만 쓰인다. 다른 웹사이트가 몰래 명령을 실행시키지 못하도록
@@ -805,7 +1002,7 @@ function createServer() {
 
     if (req.method === 'GET' && STATIC[url.pathname]) {
       try {
-        const html = fs.readFileSync(path.join(PUBLIC_DIR, STATIC[url.pathname]), 'utf-8');
+        const html = readPublic(STATIC[url.pathname]);
         res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' });
         res.end(html);
       } catch (e) { res.writeHead(404); res.end('Not found'); }
@@ -819,7 +1016,11 @@ function createServer() {
       if (req.method === 'GET' && p === '/api/ping') return sendJson(res, { app: APP_ID });
       if (req.method === 'GET' && p === '/api/status') return sendJson(res, await getStatus());
       if (req.method === 'POST' && p === '/api/save-config') return sendJson(res, saveConfig(await readBody(req)));
-      if (req.method === 'POST' && p === '/api/open-terminal') return sendJson(res, finishResult(openTerminal()));
+      if (req.method === 'POST' && p === '/api/open-terminal') {
+        const b = await readBody(req);
+        return sendJson(res, finishResult(openTerminal({ arrange: !!b.arrange, auto: !!b.auto })));
+      }
+      if (req.method === 'POST' && p === '/api/arrange') return sendJson(res, finishResult(rearrange()));
       if (req.method === 'POST' && p.startsWith('/api/jobs/')) {
         const job = startJob(p.slice('/api/jobs/'.length));
         return job ? sendJson(res, { ok: true, job }) : sendJson(res, { ok: false, message: 'unknown job' }, 404);
@@ -841,14 +1042,24 @@ function createServer() {
 
 // 즉시 끝나는 요청의 결과를 화면용으로 정리한다(성공/실패 + 쉬운 설명 + 원문).
 function finishResult(r) {
-  if (r.ok) return { ok: true, fallback: !!r.fallback, claude_found: r.claude_found };
+  if (r.ok) return { ok: true, fallback: !!r.fallback, claude_found: r.claude_found, skipped: !!r.skipped, arranged: !!r.arranged };
   const f = finishJob(r);
   return { ok: false, error: f.error, raw: f.raw };
 }
 
+// Windows에서는 Edge의 "앱 창"(주소창·탭 없는 창)으로 연다. 프로그램처럼 보이고, 화면 반쪽에 놓아도
+// 안내가 넓게 보인다. Edge를 못 찾으면 기본 브라우저로 연다.
+function edgeBin() {
+  const roots = [process.env['ProgramFiles(x86)'], process.env.ProgramFiles, process.env.LOCALAPPDATA].filter(Boolean);
+  return roots.map((r) => path.join(r, 'Microsoft', 'Edge', 'Application', 'msedge.exe')).find(isFile) || null;
+}
+
 function openBrowser(openUrl) {
+  if (process.env.WIZARD_NO_BROWSER) return;
   try {
-    if (IS_WIN) safeSpawn('cmd.exe', ['/d', '/c', `start "" "${openUrl}"`], { stdio: 'ignore', windowsVerbatimArguments: true, detached: true }).unref();
+    const edge = IS_WIN ? edgeBin() : null;
+    if (edge) safeSpawn(edge, [`--app=${openUrl}`, '--no-first-run'], { stdio: 'ignore', detached: true }).unref();
+    else if (IS_WIN) safeSpawn('cmd.exe', ['/d', '/c', `start "" "${openUrl}"`], { stdio: 'ignore', windowsVerbatimArguments: true, detached: true }).unref();
     else if (process.platform === 'darwin') safeSpawn('open', [openUrl], { stdio: 'ignore' }).unref();
     else safeSpawn('xdg-open', [openUrl], { stdio: 'ignore' }).unref();
   } catch (e) { /* 아래 안내 문구로 대신한다 */ }
@@ -869,6 +1080,8 @@ function isOurWizard(port) {
 function line(s) { console.log(s); }
 
 function start(port = DEFAULT_PORT, lastPort = DEFAULT_PORT + 9) {
+  ensureWorkDir();
+  try { process.title = CONSOLE_TITLE; } catch (e) { /* ignore */ }
   const server = createServer();
   server.on('error', async (err) => {
     if (err.code === 'EADDRINUSE') {
@@ -901,6 +1114,7 @@ function start(port = DEFAULT_PORT, lastPort = DEFAULT_PORT + 9) {
     line(`  브라우저가 자동으로 열립니다: ${openUrl}`);
     line('  (안 열리면 위 주소를 브라우저 주소창에 붙여넣으세요)');
     line('');
+    if (IS_SEA) line(`  작업 폴더: ${WORK_DIR}`);
     line('  이 검은 창은 닫지 말고 그대로 두세요.');
     line('  이 창을 닫으면 마법사도 꺼집니다.');
     line('==============================================');
@@ -910,10 +1124,11 @@ function start(port = DEFAULT_PORT, lastPort = DEFAULT_PORT + 9) {
 }
 
 module.exports = {
-  AGENTS, APP_ID, WORK_DIR, AGENT_DIR, ENV_PATH,
+  AGENTS, APP_ID, WORK_DIR, AGENT_DIR, ENV_PATH, ARRANGE_PS, PAGE_TITLE, CONSOLE_TITLE, encodePs, readPublic,
   classifyError, decodeOutput, saveConfig, loadConfig, readEnvKv, redact,
   smtpAuthCheck, loginIndicators, buildTaskXml, parseCrontab, updateCrontab,
   createServer, startJob, jobs, finishJob, getStatus, run, start,
 };
 
-if (require.main === module) start();
+// exe(SEA)로 실행되면 require.main 판정과 상관없이 바로 켠다.
+if (require.main === module || IS_SEA) start();

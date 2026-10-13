@@ -299,7 +299,59 @@ test('server.js는 Node 내장 모듈만 require한다', () => {
   const src = fs.readFileSync(path.join(__dirname, '..', 'server.js'), 'utf-8');
   const mods = [...src.matchAll(/require\(\s*['"]([^'"]+)['"]\s*\)/g)].map((m) => m[1]);
   const builtin = new Set(require('module').builtinModules);
-  for (const m of mods) assert.ok(builtin.has(m.replace(/^node:/, '')), `외부 모듈 사용: ${m}`);
+  for (const m of mods) assert.ok(builtin.has(m.replace(/^node:/, '')) || m === 'node:sea', `외부 모듈 사용: ${m}`);
+});
+
+// ---------------------------------------------------------------------------
+// exe(SEA) / 나란히 보기
+// ---------------------------------------------------------------------------
+test('상태에 exe 여부와 이 PC의 Node.js 상태가 들어 있다', async () => {
+  const st = await W.getStatus();
+  assert.equal(st.exe, false);
+  assert.equal(typeof st.node.missing, 'boolean');
+  assert.equal(st.node.min, 18);
+  assert.equal(st.terminal_opened, false);
+});
+
+test('나란히 보기: 안내 창을 찾는 제목이 실제 화면 제목과 같다', () => {
+  const html = W.readPublic('index.html');
+  const title = /<title>([^<]*)<\/title>/.exec(html)[1];
+  assert.ok(title.includes(W.PAGE_TITLE), `화면 제목 "${title}"에 "${W.PAGE_TITLE}"이 없으면 안내 창을 못 찾는다`);
+});
+
+test('나란히 보기: PowerShell 스크립트가 안전하게 인코딩되고, 기존 창 목록을 배열로 고정한다', () => {
+  const ps = W.ARRANGE_PS;
+  assert.equal(Buffer.from(W.encodePs(ps), 'base64').toString('utf16le'), ps);
+  // 기존 터미널이 1개뿐일 때 PowerShell이 목록을 값 하나로 풀어버려 마법사 자신의 창을 옮기는 일이 없어야 한다
+  assert.match(ps, /\$before = @\(\[WizWin\]::Terminals\(\)\)/);
+  assert.match(ps, /-notcontains/);
+  // 실행할 명령과 제목은 스크립트에 끼워 넣지 않고 환경 변수로 넘긴다(따옴표·한글 깨짐 방지)
+  assert.match(ps, /\$env:WIZARD_LAUNCH/);
+  assert.match(ps, /\$env:WIZARD_TITLE/);
+  assert.ok(!/\$\{/.test(ps));
+  assert.ok(/^[\x09\x0a\x0d\x20-\x7e]*$/.test(ps), 'PowerShell 스크립트는 ASCII만');
+});
+
+test('start.bat 창 제목이 CONSOLE_TITLE과 같다 (다시 나란히 놓을 때 마법사 창은 건너뛰기)', () => {
+  const bat = fs.readFileSync(path.join(__dirname, '..', 'start.bat'), 'utf-8');
+  assert.match(bat, new RegExp(`^title ${W.CONSOLE_TITLE}\\r?$`, 'm'));
+});
+
+// Windows에서만: 창 배치 스크립트의 C# 부분이 실제로 컴파일되고 끝까지 오류 없이 도는지(창 열기 없이 '다시 놓기' 모드).
+test('나란히 보기: PowerShell 스크립트가 Windows에서 오류 없이 실행된다', { skip: process.platform !== 'win32' }, () => {
+  const { spawnSync } = require('child_process');
+  const script = W.ARRANGE_PS.replace("$ErrorActionPreference = 'SilentlyContinue'", "$ErrorActionPreference = 'Stop'") + "\nWrite-Output 'ARRANGE_OK'\n";
+  const r = spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-EncodedCommand', W.encodePs(script)], {
+    encoding: 'utf8', timeout: 120000,
+    env: { ...process.env, WIZARD_LAUNCH: '', WIZARD_TITLE: W.PAGE_TITLE, WIZARD_SKIP: W.CONSOLE_TITLE, WIZARD_WORK_DIR_PATH: TMP },
+  });
+  assert.equal(r.status, 0, r.stderr || r.stdout);
+  assert.match(r.stdout, /ARRANGE_OK/);
+});
+
+test('build_exe.js가 넣는 화면 파일 이름이 server.js의 STATIC과 같다', () => {
+  const src = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'build_exe.js'), 'utf-8');
+  for (const name of ['index.html', 'node-install.html']) assert.ok(src.includes(`'${name}': path.join(ROOT, 'public', '${name}')`), name);
 });
 
 test.after(() => fs.rmSync(TMP, { recursive: true, force: true }));
