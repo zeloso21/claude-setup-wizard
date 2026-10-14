@@ -8,7 +8,7 @@
 
 ## 0. 준비
 
-- [ ] `v*` 태그를 푸시하고 Actions의 "Release zip"이 성공했는지, Release(초안)에 zip이 붙었는지
+- [ ] `v*` 태그를 푸시하고 Actions의 "Release"가 성공했는지, Release(초안)에 zip과 `ClaudeSetupWizard.exe`가 붙었는지
 - [ ] zip 안 구조가 `claude_setup_wizard/` 아래 `start.bat`, `server.js`, `사용법.txt`, `README.md`, `public/`, `.claude/settings.json` 인지 (`agent/`, `.env` 없음)
 - [ ] 탐색기에서 zip을 열었을 때 `사용법.txt` 이름이 깨지지 않는지
 - [ ] `사용법.txt`를 메모장으로 열었을 때 한글이 깨지지 않는지
@@ -81,6 +81,33 @@
 35. [ ] 125%/150% 화면 배율, 브라우저 Edge/Chrome에서 글자·버튼이 잘리지 않는지
 36. [ ] 노트북을 배터리 상태로 둔 채 예약 시각이 지나도 메일이 오는지
 
+## C. 실행 파일(ClaudeSetupWizard.exe)
+
+> CI(windows-latest)가 exe를 빌드해 켜지는지와 창 배치 PowerShell(C#)이 컴파일·실행되는지까지는 확인합니다.
+> 아래는 화면이 있는 실제 PC에서만 볼 수 있는 항목입니다.
+
+1. [ ] Node.js가 **없는** 새 계정에서 exe 더블클릭 → SmartScreen [추가 정보]→[실행] 후 검은 창 + 마법사 **앱 창(Edge, 주소창 없음)**이 열리는지
+2. [ ] 검은 창에 "작업 폴더: C:\Users\…\claude_setup_wizard"가 보이고, 그 폴더에 `.claude\settings.json`이 생기는지
+3. [ ] 1단계에 "Node.js도 함께 설치해요" 안내 → [Claude Code 설치하기] → UAC [예] → Node.js와 Claude Code가 이어서 설치되는지 (3~6분)
+4. [ ] winget이 없는 PC: 빨간 상자 "Node.js를 자동으로 설치하지 못했어요" + nodejs.org 안내
+5. [ ] exe를 [다운로드] 폴더에서 실행해도 `agent\`가 다운로드 폴더가 아니라 작업 폴더에 생기는지
+6. [ ] 예약 작업의 실행 파일이 exe가 아니라 `C:\Program Files\nodejs\node.exe`인지 (작업 스케줄러 → 동작 탭)
+7. [ ] Edge가 처음 실행되는 PC에서 앱 창이 "Edge 시작 설정" 화면 없이 바로 마법사를 보여주는지
+
+## D. 설치 → 로그인 자동 연결, 나란히 보기
+
+1. [ ] 1단계 설치가 끝나면 **버튼을 누르지 않아도** Claude Code 검은 창이 열리고, 화면이 3~4초 뒤 2단계로 넘어가는지
+2. [ ] 이미 설치·미로그인 상태에서 마법사를 켜면 시작 화면 대신 **2단계 화면 + 로그인 창**이 바로 뜨는지
+3. [ ] 이미 로그인된 상태에서 마법사를 켜면 로그인 창이 **뜨지 않는지**
+4. [ ] 브라우저를 새로고침하거나 같은 주소를 탭 두 개로 열어도 자동 로그인 창이 **한 번만** 뜨는지
+5. [ ] 창이 열리면 **왼쪽 절반 = Claude Code 창, 오른쪽 절반 = 마법사 안내**로 놓이는지
+   - Windows 10 기본 콘솔 / Windows 11 Windows 터미널(새 창·새 탭 설정 각각)
+   - 화면 배율 100% / 125% / 150%, 모니터 2대(주 모니터 기준으로 놓임)
+   - 마법사 안내를 Chrome 탭으로 연 경우에도 그 Chrome 창이 오른쪽으로 가는지
+6. [ ] 창을 옮긴 뒤 [↔ 다시 나란히 놓기] → 마법사 자신의 검은 창(제목 "Claude Code Setup Wizard")이 아니라 Claude Code 창이 왼쪽으로 가는지
+7. [ ] 오른쪽 반쪽 크기에서 안내 글·버튼·예시 그림이 잘리지 않는지
+8. [ ] PowerShell이 막힌 회사 PC: 배치 없이 창만 열리고 오류 없이 진행되는지
+
 ## 이 클라우드 검증에서 확인하지 못한 부분 (요약)
 
 - start.bat 실제 동작(winget 설치, PATH 이어붙이기, UAC), SmartScreen 경고 종류
@@ -89,3 +116,5 @@
 - 작업 스케줄러 XML 등록(UTF-16, Principal/UserId), 예비 방식, 조회 결과 해석
 - 한국어 Windows 출력(CP949) 해독 — 테스트는 바이트 단위로만 확인
 - 실제 Gmail SMTP 로그인(테스트는 가짜 SMTP 서버로 235/535만 확인)
+- 창 배치가 실제 화면에서 왼쪽/오른쪽 반쪽에 맞게 놓이는지(DPI 배율, Windows 터미널 탭 모드), Edge 앱 창 첫 실행
+- exe에서 winget으로 Node.js 설치 후 바로 npm을 찾는지(재실행 없이)

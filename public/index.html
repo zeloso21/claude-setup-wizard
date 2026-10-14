@@ -80,6 +80,11 @@
   .state.doing { background:var(--accent-soft); }
   .state.warn { background:var(--warn-soft); color:#5c3d00; }
   .state.info { background:var(--info-soft); color:#173f66; }
+  .side-note { display:flex; align-items:center; gap:10px; margin:8px 0 4px; color:var(--muted); }
+  .side-ico { flex:none; display:flex; gap:2px; width:34px; height:22px; padding:2px; border:1.5px solid var(--muted); border-radius:4px; }
+  .side-ico i { flex:1; border-radius:2px; }
+  .side-ico i:first-child { background:var(--code-bg); }
+  .side-ico i:last-child { background:var(--accent-soft); border:1px solid var(--accent); }
   .spinner { width:20px; height:20px; border:3px solid rgba(185,83,47,.25); border-top-color:var(--accent); border-radius:50%; animation:spin 1s linear infinite; flex:none; margin-top:3px; }
   @keyframes spin { to { transform:rotate(360deg); } }
 
@@ -235,6 +240,9 @@ function loadLocal(key, fallback) {
 }
 function saveLocal(key, value) { try { localStorage.setItem('wizard.' + key, JSON.stringify(value)); } catch (e) { /* 저장 불가해도 동작에는 지장 없음 */ } }
 
+// 마법사를 다시 켜는 방법: zip은 start.bat, exe는 그 실행 파일
+function LAUNCHER() { return S.status && S.status.exe ? '마법사 실행 파일(ClaudeSetupWizard.exe)' : 'start.bat'; }
+
 function esc(s) {
   return String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
@@ -321,7 +329,7 @@ function computeStates() {
   if (st.login.logged_in) out.login = 'done';
   else if (j('login-verify').state === 'running') out.login = 'doing';
   else if (j('login-verify').state === 'error') out.login = 'error';
-  else if (S.ui.opened.login) out.login = 'doing';
+  else if (S.ui.opened.login || st.terminal_opened) out.login = 'doing';
   // 3 Gmail
   const saved = st.config.has_gmail_password && !!st.config.gmail_sender;
   if (j('smtp-check').state === 'running' || S.ui.pending.save) out.gmail = 'doing';
@@ -364,6 +372,7 @@ function afterStatus() {
     S.autoTimer = setTimeout(() => { if (S.autoNext && S.view === S.autoNext.from) go(S.autoNext.to); S.autoNext = null; render(); }, 3500);
   }
   S.prev = states;
+  maybeAutoLogin();
   if (S.status && !S.formLoaded) {
     S.form.gmail_sender = S.status.config.gmail_sender;
     S.form.recipient = S.status.config.recipient === S.status.config.gmail_sender ? '' : S.status.config.recipient;
@@ -373,6 +382,19 @@ function afterStatus() {
     S.formLoaded = true;
   }
   render();
+}
+
+// 설치가 끝났거나 마법사를 켰을 때 이미 설치돼 있으면, 버튼을 누르지 않아도 로그인 창을 띄운다.
+// (서버도 자동 열기는 한 번만 받아주므로 새로고침·탭 여러 개로 창이 여러 번 뜨지 않는다)
+function maybeAutoLogin() {
+  const st = S.status;
+  if (DEMO || S.autoLoginTried || !st || S.serverDown) return;
+  if (!st.claude.installed || st.login.logged_in) return;
+  if (job('install') && job('install').state === 'running') return;
+  S.autoLoginTried = true;
+  // 시작 화면에서 켠 경우 바로 로그인 단계로. (설치 화면이면 초록 체크를 잠깐 보여준 뒤 자동으로 넘어간다)
+  if (S.view === 'start') { S.view = 'login'; try { history.replaceState(null, '', '#login'); } catch (e) { /* ignore */ } }
+  openTerminalFor('login', true);
 }
 
 // ===========================================================================
@@ -422,12 +444,12 @@ function renderBanners() {
   let html = '';
   if (S.serverDown) {
     html += `<div class="banner err"><div><b>마법사의 검은 창이 닫힌 것 같아요.</b><br>
-      <span class="small">start.bat을 다시 더블클릭하면 이어서 진행할 수 있어요. 지금까지 한 작업은 그대로 남아 있어요.</span></div>
+      <span class="small">${LAUNCHER()}을 다시 더블클릭하면 이어서 진행할 수 있어요. 지금까지 한 작업은 그대로 남아 있어요.</span></div>
       <button class="btn small plain" data-action="refresh">다시 연결</button></div>`;
   }
-  if (S.status && !S.status.node.ok) {
+  if (S.status && !S.status.node.ok && !S.status.node.missing) {
     html += `<div class="banner err"><div><b>Node.js 버전이 너무 낮아요 (${esc(S.status.node.version)}).</b><br>
-      <span class="small">Claude Code는 Node.js ${S.status.node.min} 이상이 필요해요. <a href="https://nodejs.org" target="_blank" rel="noopener">nodejs.org</a>에서 LTS 버전을 설치한 뒤 start.bat을 다시 실행해주세요.</span></div></div>`;
+      <span class="small">Claude Code는 Node.js ${S.status.node.min} 이상이 필요해요. <a href="https://nodejs.org" target="_blank" rel="noopener">nodejs.org</a>에서 LTS 버전을 설치한 뒤 ${LAUNCHER()}을 다시 실행해주세요.</span></div></div>`;
   }
   const el = document.getElementById('banners');
   if (el.innerHTML !== html) el.innerHTML = html;
@@ -575,19 +597,21 @@ function viewInstall(states) {
   else box = stateBox('todo', '⬜', `<b>아직 설치되지 않았어요.</b> 아래 버튼을 한 번만 누르세요.`);
   return `<section class="card">
     ${head('install', s, 'Claude Code 프로그램을 이 PC에 설치해요. 버튼 한 번이면 돼요.', 'Claude Code가 있어야 말로 부탁해서 프로그램을 만들 수 있어요. 이후 모든 단계가 이 프로그램을 써요.')}
-    ${st ? stateBox(st.node.ok ? 'done' : 'warn', st.node.ok ? '✅' : '⚠️', `Node.js ${esc(st.node.version)} ${st.node.ok ? '준비됨 (Claude Code를 돌리는 바탕 프로그램)' : `— ${st.node.min} 이상이 필요해요`}`) : ''}
+    ${st ? (st.node.missing
+      ? stateBox('info', 'ℹ️', `<b>Node.js(Claude Code를 돌리는 바탕 프로그램)도 함께 설치해요.</b><br><span class="small">설치 중 <b>"이 앱이 디바이스를 변경할 수 있도록 허용하시겠어요?"</b> 창이 뜨면 <b>[예]</b>를 눌러주세요. 이 마법사에서 관리자 허락이 필요한 건 이 한 번뿐이에요. 시간이 조금 더 걸려요(3~6분).</span>`)
+      : stateBox(st.node.ok ? 'done' : 'warn', st.node.ok ? '✅' : '⚠️', `Node.js ${esc(st.node.version)} ${st.node.ok ? '준비됨 (Claude Code를 돌리는 바탕 프로그램)' : `— ${st.node.min} 이상이 필요해요`}`)) : ''}
     ${box}
     ${s !== 'done' ? `<div class="row">
       <button class="btn" data-action="job" data-job="install" ${s === 'doing' ? 'disabled' : ''}>${s === 'error' || (st && st.claude.found_but_broken) ? '다시 설치하기' : 'Claude Code 설치하기'}</button>
     </div>
-    <p class="small muted">관리자 권한이 필요 없어요. 공식 배포 프로그램(@anthropic-ai/claude-code)을 내 계정 폴더에만 설치해요.</p>` : ''}
+    <p class="small muted">${st && st.node.missing ? 'Node.js는 공식 배포처(winget OpenJS.NodeJS.LTS)에서, ' : '관리자 권한이 필요 없어요. '}Claude Code는 공식 배포 프로그램(@anthropic-ai/claude-code)을 내 계정 폴더에만 설치해요. 설치가 끝나면 <b>로그인 창이 저절로 열려요</b>.</p>` : ''}
     ${jobError('install', { retry: 'retry-install' })}
     ${stuck('install', [
-      { q: '"winget을 찾을 수 없다" / Node.js가 설치되지 않았다고 나와요', a: `<ol><li><a href="https://nodejs.org" target="_blank" rel="noopener">nodejs.org</a>에 들어가 초록색 <b>"LTS"</b> 버튼을 눌러 설치 파일을 받으세요.</li><li>받은 파일을 열고 [Next] → [Next] → [Install] → [Finish]를 누르세요. "이 앱이 변경하도록 허용할까요?"가 나오면 [예] (Node.js는 모든 사용자용으로 설치되기 때문에 묻는 거예요).</li><li>마법사 검은 창을 닫고 start.bat을 다시 더블클릭하세요.</li></ol>` },
-      { q: '설치가 끝났다는데 계속 "아직 안 함"으로 나와요', a: `컴퓨터가 방금 설치된 프로그램을 아직 못 알아본 거예요(Windows의 PATH가 갱신되지 않음).<ol><li>마법사 <b>검은 창을 닫으세요</b>.</li><li>start.bat을 <b>다시 더블클릭</b>하세요.</li><li>그래도 같으면 PC를 다시 시작한 뒤 start.bat을 실행하세요.</li></ol>` },
+      { q: '"winget을 찾을 수 없다" / Node.js가 설치되지 않았다고 나와요', a: `<ol><li><a href="https://nodejs.org" target="_blank" rel="noopener">nodejs.org</a>에 들어가 초록색 <b>"LTS"</b> 버튼을 눌러 설치 파일을 받으세요.</li><li>받은 파일을 열고 [Next] → [Next] → [Install] → [Finish]를 누르세요. "이 앱이 변경하도록 허용할까요?"가 나오면 [예] (Node.js는 모든 사용자용으로 설치되기 때문에 묻는 거예요).</li><li>마법사 검은 창을 닫고 ${LAUNCHER()}을 다시 더블클릭하세요.</li></ol>` },
+      { q: '설치가 끝났다는데 계속 "아직 안 함"으로 나와요', a: `컴퓨터가 방금 설치된 프로그램을 아직 못 알아본 거예요(Windows의 PATH가 갱신되지 않음).<ol><li>마법사 <b>검은 창을 닫으세요</b>.</li><li>${LAUNCHER()}을 <b>다시 더블클릭</b>하세요.</li><li>그래도 같으면 PC를 다시 시작한 뒤 ${LAUNCHER()}을 실행하세요.</li></ol>` },
       { q: '"인터넷 연결" / "프록시" 오류가 나요 (회사 PC)', a: `회사·학교 네트워크가 프로그램 다운로드를 막고 있을 수 있어요. 집 와이파이나 휴대폰 핫스팟으로 바꿔서 [다시 설치하기]를 눌러보세요. 회사 PC라면 전산 담당자에게 "registry.npmjs.org 접속 허용"을 요청하세요.` },
       { q: '백신 프로그램이 경고를 띄워요', a: `Claude Code는 Anthropic이 공식 배포하는 프로그램이에요. 백신이 막았다면 [허용]을 누르고 [다시 설치하기]를 눌러주세요. 걱정되면 <a href="https://claude.com/claude-code" target="_blank" rel="noopener">claude.com/claude-code</a> 공식 페이지에서 설치 방법을 확인할 수 있어요.` },
-      { q: '버튼으로 계속 안 돼요 — 다른 방법이 있나요?', a: `<a href="https://claude.com/claude-code" target="_blank" rel="noopener">claude.com/claude-code</a> 공식 페이지의 Windows 설치 안내를 따라 설치해도 돼요. 설치가 끝나면 이 화면이 5초 안에 자동으로 알아차려요(안 되면 start.bat을 다시 실행).` },
+      { q: '버튼으로 계속 안 돼요 — 다른 방법이 있나요?', a: `<a href="https://claude.com/claude-code" target="_blank" rel="noopener">claude.com/claude-code</a> 공식 페이지의 Windows 설치 안내를 따라 설치해도 돼요. 설치가 끝나면 이 화면이 5초 안에 자동으로 알아차려요(안 되면 ${LAUNCHER()}을 다시 실행).` },
     ])}
     ${nav('install', states)}
   </section>`;
@@ -603,21 +627,22 @@ function viewLogin(states) {
   let box;
   if (s === 'done') box = stateBox('done', '✅', `<b>로그인되어 있어요.</b> <span class="small">Claude Code를 쓸 준비가 끝났어요.</span>`);
   else if (verifying) box = stateBox('doing', '', `<b>Claude에게 실제로 말을 걸어 확인하는 중…</b> ${elapsed(job('login-verify').started)} <span class="small">(최대 1~2분)</span>`);
-  else if (s === 'doing') box = stateBox('doing', '', `<b>검은 창에서 로그인을 진행해주세요.</b><br><span class="small">아래 순서대로 하면 돼요. 로그인이 끝나면 이 화면이 자동으로 알아차려요.</span>`);
+  else if (s === 'doing') box = stateBox('doing', '', `<b>${st && st.os === 'Windows' ? '왼쪽' : '열린'} 검은 창(Claude Code)에서 로그인을 진행해주세요.</b><br><span class="small">이 안내를 옆에 두고 아래 순서대로 하면 돼요. 로그인이 끝나면 이 화면이 자동으로 알아차려요.</span>`);
   else box = stateBox('todo', '⬜', `<b>아직 로그인하지 않았어요.</b>`);
   return `<section class="card">
     ${head('login', s, 'Claude 계정(유료 구독)으로 Claude Code에 로그인해요.', 'Claude Code는 내 계정의 구독을 써서 동작해요. 로그인은 이 PC에서 처음 한 번만 하면 돼요.')}
     ${box}
-    ${s !== 'done' ? `<div class="row"><button class="btn" data-action="terminal" data-for="login" ${st && !st.claude.installed && !DEMO ? 'disabled' : ''}>🖥️ 로그인 창 열기</button></div>` : ''}
+    ${s !== 'done' ? `<div class="row"><button class="btn ${s === 'doing' ? 'secondary' : ''}" data-action="terminal" data-for="login" ${st && !st.claude.installed && !DEMO ? 'disabled' : ''}>🖥️ ${s === 'doing' ? '로그인 창 다시 열기' : '로그인 창 열기'}</button></div>
+      ${sideBySideNote(st)}` : ''}
     ${job('login-verify') && job('login-verify').state === 'error' ? jobError('login-verify', { retry: 'verify-login' }) : ''}
     <h3>로그인 순서</h3>
     <ol class="steps-ol">
-      <li>[로그인 창 열기]를 누르면 검은 창이 뜨고 <b>Claude Code가 저절로 시작돼요</b>. 직접 입력할 명령어는 없어요.</li>
+      <li>설치가 끝나면(또는 [로그인 창 열기]를 누르면) 검은 창이 뜨고 <b>Claude Code가 저절로 시작돼요</b>. 직접 입력할 명령어는 없어요.</li>
       <li>글자 색(테마)을 고르는 화면이 나오면 그냥 <span class="kbd">Enter</span>.</li>
       <li>로그인 방법을 물으면 맨 위 <b>"Claude account with subscription"</b>(구독 계정)이 선택된 상태에서 <span class="kbd">Enter</span>.</li>
       <li><b>브라우저에 Claude 로그인 화면</b>이 열려요. 평소처럼 로그인하고 <b>[승인(Authorize)]</b>을 누르세요.</li>
       <li>검은 창에 <b>"Login successful"</b>이 보이면 <span class="kbd">Enter</span>를 몇 번 눌러 안내를 넘기세요. "이 폴더를 믿나요?"라고 물으면 <b>Yes</b>를 고르고 <span class="kbd">Enter</span>.</li>
-      <li>이 화면이 자동으로 확인해서 <b>초록 체크</b>로 바뀌어요. 검은 창은 4단계에서 다시 쓰니 열어두셔도 돼요.</li>
+      <li>이 화면이 자동으로 확인해서 <b>초록 체크</b>로 바뀌어요. 검은 창은 4단계에서 그대로 다시 쓰니 <b>닫지 말고 두세요</b>.</li>
     </ol>
     <p class="small muted">예시 화면이에요. Claude Code 버전에 따라 글자가 조금 다를 수 있어요.</p>
     <div class="mock-grid">
@@ -637,7 +662,7 @@ function viewLogin(states) {
     ${s !== 'done' ? `<p class="small muted">로그인을 마쳤는데 초록 체크가 안 되나요? <button class="btn small plain" data-action="verify-login" ${verifying ? 'disabled' : ''}>실제로 확인하기</button></p>` : ''}
     ${stuck('login', [
       { q: '브라우저 로그인 창이 안 떠요', a: `<ol><li>검은 창에 <b>https://로 시작하는 긴 주소</b>가 보이면, 마우스로 처음부터 끝까지 드래그해서 선택하고 <b>마우스 오른쪽 버튼</b>을 눌러 복사하세요.</li><li>브라우저 주소창에 <span class="kbd">Ctrl</span>+<span class="kbd">V</span>로 붙여넣고 Enter.</li><li>로그인 후 화면에 <b>코드</b>가 나오면 [Copy Code]를 누르고, 검은 창을 클릭해 <span class="kbd">Ctrl</span>+<span class="kbd">V</span> → <span class="kbd">Enter</span>.</li></ol>` },
-      { q: '"\'claude\'은(는) 내부 또는 외부 명령... 이(가) 아닙니다"라고 나와요', a: `설치 직후라 컴퓨터가 아직 Claude Code를 못 알아본 거예요. 마법사 검은 창을 닫고 start.bat을 다시 실행한 뒤 [로그인 창 열기]를 다시 누르세요.` },
+      { q: '"\'claude\'은(는) 내부 또는 외부 명령... 이(가) 아닙니다"라고 나와요', a: `설치 직후라 컴퓨터가 아직 Claude Code를 못 알아본 거예요. 마법사 검은 창을 닫고 ${LAUNCHER()}을 다시 실행한 뒤 [로그인 창 열기]를 다시 누르세요.` },
       { q: '"구독이 필요하다" / 로그인이 거절돼요', a: `Claude Code는 <b>Pro 또는 Max 유료 구독</b>이 있어야 쓸 수 있어요. <a href="https://claude.ai" target="_blank" rel="noopener">claude.ai</a>에 로그인해서 구독 상태를 확인하세요. 회사 계정이라면 관리자가 Claude Code 사용을 허용했는지 물어보세요.` },
       { q: '로그인했는데 이 화면이 계속 "진행 중"이에요', a: `[실제로 확인하기] 버튼을 눌러주세요. Claude에게 짧은 질문을 보내 진짜 로그인됐는지 확인해요(1~2분). 그래도 안 되면 검은 창에서 <code>/login</code>을 입력하고 Enter를 눌러 다시 로그인하세요.` },
       { q: '검은 창에 한글이 깨지거나 화면이 이상해요', a: `괜찮아요. 화면이 조금 깨져 보여도 동작에는 지장이 없어요. 창 크기를 키우면 대부분 나아져요.` },
@@ -746,11 +771,12 @@ function viewAgent(states) {
     ${head('agent', s, 'Claude Code에게 부탁해서 "매일 아침 환율·코스피 요약 메일" 프로그램을 만들어요.', '이게 Claude Code의 핵심이에요. 코딩을 몰라도 말로 부탁하면 프로그램이 만들어지는 걸 직접 경험해봐요. 인증키가 필요 없는 공개 데이터만 써요.')}
     ${box}
     <ol class="steps-ol">
-      <li><b>Claude Code 창 열기</b> — 2단계에서 연 창이 아직 열려 있으면 그 창을 써도 돼요.
-        <div class="row"><button class="btn secondary" data-action="terminal" data-for="agent">🖥️ Claude Code 창 열기</button></div></li>
+      <li><b>Claude Code 창 열기</b> — 2단계에서 연 창이 아직 열려 있으면 그 창을 그대로 쓰면 돼요.
+        <div class="row"><button class="btn secondary" data-action="terminal" data-for="agent">🖥️ Claude Code 창 열기</button></div>
+        ${sideBySideNote(st)}</li>
       <li><b>요청 문장 복사</b> — 문장을 직접 쓸 필요 없어요. 아래 버튼을 누르세요.
         ${copyBlock(PROMPT_BASIC, '요청 문장 복사', '복사됐어요! 검은 창을 한 번 클릭하고 Ctrl+V → Enter를 누르세요.')}</li>
-      <li><b>검은 창에 붙여넣기</b> — 검은 창을 마우스로 한 번 클릭하고 <span class="kbd">Ctrl</span>+<span class="kbd">V</span> → <span class="kbd">Enter</span>.
+      <li><b>검은 창에 붙여넣기</b> — ${st && st.os === 'Windows' ? '왼쪽 ' : ''}검은 창을 마우스로 한 번 클릭하고 <span class="kbd">Ctrl</span>+<span class="kbd">V</span> → <span class="kbd">Enter</span>.
         <div class="small muted">Ctrl+V가 안 되면 마우스 오른쪽 버튼을 눌러보세요.</div></li>
       <li><b>허락해주기</b> — Claude가 "파일을 만들어도 될까요?", "이 명령을 실행해도 될까요?"라고 물으면 <b>1번(Yes)</b>을 고르고 <span class="kbd">Enter</span>. 몇 번 물어볼 수 있어요.</li>
       <li><b>기다리기</b> — 2~5분 정도 걸려요. 파일이 생기면 이 화면이 자동으로 알아차려요. 끝나면 메일함을 확인하세요!</li>
@@ -961,11 +987,32 @@ async function syncAction(key, fn) {
   try {
     S.ui.results[key] = await fn();
   } catch (e) {
-    S.ui.results[key] = { ok: false, error: { kind: 'server_down', title: '마법사 서버와 연결이 끊겼어요', what: '마법사의 검은 창이 닫혔거나 멈춘 것 같아요.', todo: ['start.bat을 다시 더블클릭한 뒤 다시 눌러주세요.'] } };
+    S.ui.results[key] = { ok: false, error: { kind: 'server_down', title: '마법사 서버와 연결이 끊겼어요', what: '마법사의 검은 창이 닫혔거나 멈춘 것 같아요.', todo: [`${LAUNCHER()}을 다시 더블클릭한 뒤 다시 눌러주세요.`] } };
   }
   S.ui.pending[key] = false;
   await refresh();
   return S.ui.results[key];
+}
+
+// Claude Code 창을 연다. Windows에서는 Claude Code 창을 왼쪽, 이 안내 화면을 오른쪽에 나란히 놓는다.
+async function openTerminalFor(who, auto) {
+  const r = await syncAction('terminal', () => api('/api/open-terminal', { arrange: true, auto: !!auto }));
+  if (r && r.ok) {
+    S.ui.opened[who] = true;
+    if (r.skipped) { render(); return; }
+    if (r.claude_found === false) toast('검은 창을 열었어요. (Claude Code를 찾지 못해 빈 창이 열렸어요 — 1단계를 확인하세요)');
+    else if (r.arranged) toast(auto ? '로그인 창을 열었어요! 왼쪽 검은 창에서 진행하고, 이 안내는 오른쪽에서 보세요.' : '왼쪽에 Claude Code 창, 오른쪽에 이 안내를 나란히 놓았어요.');
+    else toast('검은 창을 열었어요! 작업 표시줄에서 "Claude Code" 창을 찾아보세요.');
+  } else if (r) {
+    toast('검은 창을 열지 못했어요: ' + ((r.error && r.error.title) || ''));
+  }
+  render();
+}
+
+function sideBySideNote(st) {
+  if (!st || st.os !== 'Windows') return '';
+  const opened = st.terminal_opened || Object.values(S.ui.opened).some(Boolean);
+  return `<div class="side-note small"><span class="side-ico" aria-hidden="true"><i></i><i></i></span><span><b>나란히 보기</b> — 창을 열면 <b>왼쪽에 Claude Code(검은 창)</b>, <b>오른쪽에 이 안내</b>가 놓여요.${opened ? ` 창이 겹치거나 작아졌다면 <button class="btn small plain" data-action="arrange">↔ 다시 나란히 놓기</button>` : ''}</span></div>`;
 }
 
 async function saveConfig() {
@@ -994,16 +1041,10 @@ const ACTIONS = {
     const r = await syncAction('krx', () => api('/api/save-config', { gmail_sender: S.status.config.gmail_sender, recipient: S.status.config.recipient, krx_key: S.form.krx_key }));
     if (r && r.ok) { S.form.krx_key = ''; render(); }
   },
-  terminal: async (el) => {
-    const who = el.dataset.for;
-    const r = await syncAction('terminal', () => api('/api/open-terminal', {}));
-    if (r && r.ok) {
-      S.ui.opened[who] = true;
-      toast(r.claude_found === false ? '검은 창을 열었어요. (Claude Code를 찾지 못해 빈 창이 열렸어요 — 1단계를 확인하세요)' : '검은 창을 열었어요! 작업 표시줄에서 "Claude Code" 창을 찾아보세요.');
-    } else if (r) {
-      toast('검은 창을 열지 못했어요: ' + ((r.error && r.error.title) || ''));
-    }
-    render();
+  terminal: (el) => openTerminalFor(el.dataset.for, false),
+  arrange: async () => {
+    const r = await api('/api/arrange', {}).catch(() => null);
+    toast(r && r.ok ? '왼쪽에 Claude Code 창, 오른쪽에 이 안내를 다시 놓았어요.' : '창을 옮기지 못했어요. 마우스로 창을 끌어 화면 왼쪽 끝에 붙이면 반쪽 크기로 맞춰져요.');
   },
   schedule: () => syncAction('schedule', () => api('/api/schedule', { job: 'basic', hour: Number(S.form.hour), minute: Number(S.form.minute) })),
   unschedule: () => syncAction('schedule', () => api('/api/unschedule', { job: 'basic' })),
@@ -1070,7 +1111,7 @@ function demoStatus() {
   const gmailHas = d.gmail !== 'todo';
   const st = {
     app: 'claude-setup-wizard', os: 'Windows', work_dir: 'C:\\Users\\hong\\Downloads\\claude_setup_wizard',
-    node: { version: 'v22.11.0', ok: true, min: 18 },
+    node: { version: 'v22.11.0', ok: true, min: 18 }, exe: true, terminal_opened: false,
     claude: { installed: d.install === 'done', version: d.install === 'done' ? '2.1.42' : null },
     login: { logged_in: d.login === 'done' },
     config: { gmail_sender: gmailHas ? 'hong@gmail.com' : '', recipient: gmailHas ? 'hong@gmail.com' : '', has_gmail_password: gmailHas && d.gmail !== 'doing', has_krx_key: false },
@@ -1104,7 +1145,7 @@ function demoApi(path) {
     setTimeout(() => { S.demo.states[step] = 'done'; refresh(); }, 1800);
   }
   if (path === '/api/unschedule') { S.demo.states.schedule = 'todo'; }
-  return Promise.resolve({ ok: true, claude_found: true });
+  return Promise.resolve({ ok: true, claude_found: true, arranged: true });
 }
 
 function renderDemo() {
